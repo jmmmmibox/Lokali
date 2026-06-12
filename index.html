@@ -2799,12 +2799,14 @@ async function loadAdminData(){
       +'<td style="text-align:center">'
       +'<button data-uid="'+u.id+'" data-gratis="'+(u.gratis?'1':'0')+'" onclick="adminToggleGratis(this)" style="background:'+(u.gratis?'#581c87':'#1e293b')+';border:1px solid '+(u.gratis?'#a855f7':'#334155')+';color:'+(u.gratis?'#d8b4fe':'#64748b')+';border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">'+(u.gratis?'✓ Gratis':'Gratis')+'</button>'
       +'</td>'
-      +'<td><div style="display:flex;gap:5px;flex-wrap:wrap">'
+      +'<td><div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'
       +'<select data-uid="'+u.id+'" onchange="adminCambiarPlan(this)" style="background:#0f172a;border:1px solid #334155;color:#94a3b8;border-radius:6px;padding:4px 6px;font-size:11px;cursor:pointer;font-family:inherit">'
       +'<option value="">Plan...</option>'
-      +'<option value="trial">Trial</option><option value="basico">Básico</option><option value="estandar">Estándar</option><option value="premium">Premium</option>'
+      +'<option value="trial">Trial</option><option value="premium">Activo</option>'
       +'</select>'
-      +'<button data-uid="'+u.id+'" onclick="adminExtenderTrial(this)" style="background:#1e3a5f;border:none;color:#60a5fa;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-family:inherit" title="Extender trial 7 días">+7d</button>'
+      +'<button data-uid="'+u.id+'" data-dias="-7" onclick="adminAjustarTrial(this)" style="background:#0f172a;border:1px solid #334155;color:#f87171;border-radius:6px;padding:4px 7px;font-size:11px;cursor:pointer;font-family:inherit" title="Restar 7 días">-7d</button>'
+      +'<button data-uid="'+u.id+'" data-dias="7" onclick="adminAjustarTrial(this)" style="background:#1e3a5f;border:none;color:#60a5fa;border-radius:6px;padding:4px 7px;font-size:11px;cursor:pointer;font-family:inherit" title="Añadir 7 días">+7d</button>'
+      +'<input type="date" data-uid="'+u.id+'" value="'+(u.trial_hasta||'')+'" onchange="adminSetTrialFecha(this)" style="background:#0f172a;border:1px solid #334155;color:#94a3b8;border-radius:6px;padding:3px 6px;font-size:11px;cursor:pointer;font-family:inherit;width:120px" title="Fijar fecha exacta">'
       +(u.email!==ADMIN_EMAIL?'<button data-uid="'+u.id+'" data-email="'+u.email+'" onclick="adminEliminarUsuario(this)" style="background:#450a0a;border:none;color:#f87171;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-family:inherit" title="Eliminar usuario">✕</button>':'')
       +'</div></td>'
       +'</tr>';
@@ -2820,13 +2822,23 @@ async function adminCambiarPlan(sel){
   showToast('Plan actualizado','#059669');
   await loadAdminData();
 }
-async function adminExtenderTrial(btn){
+async function adminAjustarTrial(btn){
   var uid=btn.getAttribute('data-uid');
+  var dias=parseInt(btn.getAttribute('data-dias'));
   var {data:u}=await sb.from('usuarios').select('trial_hasta').eq('id',uid).single();
-  var base=u&&u.trial_hasta?new Date(u.trial_hasta):new Date();
-  base.setDate(base.getDate()+7);
-  await sb.from('usuarios').update({trial_hasta:base.toISOString().split('T')[0],plan:'trial'}).eq('id',uid);
-  showToast('Trial extendido 7 días','#059669');
+  var base=u&&u.trial_hasta?new Date(u.trial_hasta+'T12:00:00'):new Date();
+  base.setDate(base.getDate()+dias);
+  var nuevaFecha=base.toISOString().split('T')[0];
+  await sb.from('usuarios').update({trial_hasta:nuevaFecha,plan:'trial'}).eq('id',uid);
+  showToast((dias>0?'+':'')+dias+' días → '+nuevaFecha,'#059669');
+  await loadAdminData();
+}
+async function adminSetTrialFecha(input){
+  var uid=input.getAttribute('data-uid');
+  var fecha=input.value;
+  if(!fecha)return;
+  await sb.from('usuarios').update({trial_hasta:fecha,plan:'trial'}).eq('id',uid);
+  showToast('Trial hasta '+fecha,'#059669');
   await loadAdminData();
 }
 async function adminToggleGratis(btn){
