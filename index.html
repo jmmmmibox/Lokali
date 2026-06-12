@@ -695,7 +695,7 @@ function toggleYrPopup(parent){
   document.getElementById('yr-inp').addEventListener('keydown',function(e){if(e.key==='Enter')doAddYear();});
 }
 function closeYrPopup(){if(yrPopup){yrPopup.remove();yrPopup=null;}}
-function doAddYear(){
+async function doAddYear(){
   var y=parseInt(document.getElementById('yr-inp').value);
   if(!y||y<2000||y>2099||ST.meta.years.includes(y)){showToast('Ano no valido','#dc2626');return;}
   ST.meta.years.push(y);await saveMeta();
@@ -2347,7 +2347,7 @@ function editPinBtn(btn){
     +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>'
     +'<button class="btn btn-primary" data-nid="'+id+'" onclick="savePin(this)">Guardar</button></div></div>');
 }
-function savePin(btn){
+async function savePin(btn){
   var id=btn.getAttribute('data-nid');
   var tienePin=!!(ST.pins&&ST.pins[id]);
   var actEl=document.getElementById('pin-act');
@@ -2411,7 +2411,7 @@ function openNuevoNeg(){
     +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveNuevoNeg()">Crear</button></div></div>');
 }
 function selNnColor(el){el.closest('#nn-cols').querySelectorAll('.color-sw').forEach(function(x){x.classList.remove('sel');});el.classList.add('sel');document.getElementById('nn-col').value=el.getAttribute('data-c');}
-function saveNuevoNeg(){
+async function saveNuevoNeg(){
   var nombre=document.getElementById('nn-n').value.trim();
   if(!nombre){showToast('Escribe el nombre','#dc2626');return;}
   var id='neg_'+Date.now();
@@ -2438,7 +2438,7 @@ function editNegBtn(btn){
     +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button data-nid="'+id+'" onclick="saveEditNegBtn(this)" class="btn btn-primary">Guardar</button></div></div>');
 }
 function selEnColor(el){el.closest('#en-cols').querySelectorAll('.color-sw').forEach(function(x){x.classList.remove('sel');});el.classList.add('sel');document.getElementById('en-col').value=el.getAttribute('data-c');}
-function saveEditNegBtn(btn){
+async function saveEditNegBtn(btn){
   var id=btn.getAttribute('data-nid');
   var idx=ST.negocios.findIndex(function(n){return n.id===id;});if(idx===-1)return;
   ST.negocios[idx].nombre=document.getElementById('en-n').value.trim()||ST.negocios[idx].nombre;
@@ -2487,7 +2487,7 @@ function confirmDelNegNombre(id,nombre){
   if(inp.value.trim()===nombre){closeModal();doDelNeg(id);}
   else{inp.style.borderColor='#dc2626';showToast('Nombre incorrecto','#dc2626');}
 }
-function doDelNeg(id){
+async function doDelNeg(id){
   await sbDeleteNegocio(id);
   if(ST.pins)delete ST.pins[id];
   ST.negocios=ST.negocios.filter(function(n){return n.id!==id;});
@@ -2585,11 +2585,11 @@ function impBackup(){
   if(!file){showToast('Selecciona un archivo','#dc2626');return;}
   if(!confirm('Restaurar? Los datos actuales de '+ST.negocio.nombre+' se reemplazaran.'))return;
   var reader=new FileReader();
-  reader.onload=function(e){
+  reader.onload=async function(e){
     try{
       var bk=JSON.parse(e.target.result);
       if(!bk.meta||!bk.cfg||!bk.datos)throw new Error();
-      ST.meta=bk.meta;ST.cfg=bk.cfg;saveMeta();saveCfg();
+      ST.meta=bk.meta;ST.cfg=bk.cfg;await saveMeta();await saveCfg();
       for(var entry of Object.entries(bk.datos)){await sbSaveData(ST.negocio.id,parseInt(entry[0]),entry[1]);}
       var ys=ST.meta.years;ST.year=ys.includes(new Date().getFullYear())?new Date().getFullYear():ys[ys.length-1];
       ST.data=(await sbGetData(ST.negocio.id,ST.year))||makeSeed(ST.negocio.tipo,ST.year);
@@ -2612,7 +2612,7 @@ function expXLSX(){
 }
 
 /* SUPABASE + AUTH */
-const SUPABASE_URL='https://rprwhtaobrfergpqjvie.supabase.co';
+const SUPABASE_URL='https://rjpjqrsyzkeghofziejy.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqcGpxcnN5emtlZ2hvZnppZWp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4NTI1MjYsImV4cCI6MjA5NDQyODUyNn0.httUrRI99cAO1YpiZzfcFcIAj5y41QB817b9pdfjbI4';
 const ADMIN_EMAIL='nadius76@hotmail.com';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
