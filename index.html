@@ -318,13 +318,25 @@ td{padding:9px 10px;vertical-align:middle}
 
 <!-- EXPIRED SCREEN -->
 <div id="expired-screen" style="display:none;position:fixed;inset:0;background:#0f172a;z-index:9997;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:24px">
-  <div style="font-size:48px;margin-bottom:16px">⏰</div>
+  <div style="font-size:48px;margin-bottom:16px">🔒</div>
   <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:8px">Tu periodo de prueba ha terminado</div>
-  <div style="font-size:14px;color:#64748b;margin-bottom:32px;max-width:380px">Para seguir usando Lokali activa tu plan. Tus datos están guardados y seguros.</div>
-  <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
-    <button onclick="showExpiredPlanes()" style="background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:13px 24px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Ver planes →</button>
-    <button onclick="doLogout()" style="background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:10px;padding:13px 24px;font-size:14px;cursor:pointer;font-family:inherit">Cerrar sesión</button>
+  <div style="font-size:14px;color:#64748b;margin-bottom:8px;max-width:380px">Activa tu suscripción para seguir usando Lokali. Tus datos están guardados y seguros.</div>
+  <div style="font-size:24px;font-weight:800;color:#3b82f6;margin-bottom:4px">20€/mes</div>
+  <div style="font-size:12px;color:#22c55e;margin-bottom:28px">o 200€/año — 2 meses gratis</div>
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:16px;padding:20px;max-width:340px;margin-bottom:24px;text-align:left">
+    <div style="font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;margin-bottom:10px">Incluye todo</div>
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:#e2e8f0">
+      <div>✓ Hasta 10 negocios</div>
+      <div>✓ Todos los módulos</div>
+      <div>✓ Datos en la nube</div>
+      <div>✓ Soporte incluido</div>
+    </div>
   </div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+    <button id="btn-checkout" onclick="goToCheckout()" style="background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s">Activar por 20€/mes →</button>
+    <button onclick="doLogout()" style="background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:10px;padding:14px 20px;font-size:14px;cursor:pointer;font-family:inherit">Cerrar sesión</button>
+  </div>
+  <div id="checkout-error" style="color:#f87171;font-size:12px;margin-top:12px;display:none"></div>
 </div>
 
 <!-- SUPERADMIN SCREEN -->
@@ -2899,11 +2911,45 @@ async function confirmAdminEliminar(btn){
   }
 }
 
+async function goToCheckout(){
+  var btn=document.getElementById('btn-checkout');
+  var err=document.getElementById('checkout-error');
+  btn.disabled=true;btn.textContent='Redirigiendo...';
+  err.style.display='none';
+  try{
+    var res=await fetch('/.netlify/functions/create-checkout',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:currentUser.id,email:currentUser.email})
+    });
+    var data=await res.json();
+    if(data.url){window.location.href=data.url;}
+    else throw new Error(data.error||'Error al crear sesión de pago');
+  }catch(e){
+    err.textContent=e.message;err.style.display='block';
+    btn.disabled=false;btn.textContent='Activar por 20€/mes →';
+  }
+}
+
 /* START */
 document.addEventListener('DOMContentLoaded',async function(){
-  // Siempre mostrar la landing primero
+  // Handle return from Stripe
+  var params=new URLSearchParams(window.location.search);
+  if(params.get('payment')==='success'){
+    history.replaceState({},'',window.location.pathname);
+    // Reload profile and enter app
+    var {data:{session}}=await sb.auth.getSession();
+    if(session){
+      // Wait a moment for webhook to process
+      setTimeout(async function(){
+        await onLogin(session.user);
+        showToast('¡Pago completado! Bienvenido a Lokali 🎉','#059669');
+      },1500);
+      return;
+    }
+  }
+  // Normal flow
   document.getElementById('auth-screen').style.display='block';
-  // Luego comprobar si hay sesión activa
   var {data:{session}}=await sb.auth.getSession();
   if(session&&session.user){
     await onLogin(session.user);
