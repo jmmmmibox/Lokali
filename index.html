@@ -480,20 +480,39 @@ const NAV_ITEMS = [
 // Secciones que no se pueden ocultar
 const NAV_FIXED = ['negocio','ajustes','backup'];
 
-/* STORAGE KEYS */
-const SK_DATA     = (nid,y)  => 'lk_data_'  + nid + '_' + y;
-const SK_CFG      = (nid)    => 'lk_cfg_'   + nid;
-const SK_META     = (nid)    => 'lk_meta_'  + nid;
-const SK_NEGOCIOS = 'lk_negocios';
-const SK_NEG_ACT  = 'lk_neg_act';
-const SK_PLAN     = 'lk_plan';
-const SK_SECOCULTAS = (nid)  => 'lk_secocultas_' + nid;
-const SK_PINS       = 'lk_pins';
+/* SUPABASE DATA HELPERS */
+async function sbGetNegocios(){
+  var {data,error}=await sb.from('negocios').select('*').eq('user_id',currentUser.id).order('created_at',{ascending:true});
+  if(error||!data)return [];
+  return data;
+}
+async function sbSaveNegocio(neg){
+  await sb.from('negocios').upsert({id:neg.id,user_id:currentUser.id,nombre:neg.nombre,tipo:neg.tipo,emoji:neg.emoji,color:neg.color});
+}
+async function sbDeleteNegocio(nid){
+  await sb.from('negocios').delete().eq('id',nid);
+}
+async function sbGetData(nid,year){
+  var {data,error}=await sb.from('negocio_data').select('data').eq('negocio_id',nid).eq('year',year).maybeSingle();
+  if(error||!data)return null;
+  return data.data;
+}
+async function sbSaveData(nid,year,dataObj){
+  await sb.from('negocio_data').upsert({negocio_id:nid,year:year,user_id:currentUser.id,data:dataObj,updated_at:new Date().toISOString()},{onConflict:'negocio_id,year'});
+}
+async function sbGetConfig(nid){
+  var {data,error}=await sb.from('negocio_config').select('config').eq('negocio_id',nid).maybeSingle();
+  if(error||!data)return null;
+  return data.config;
+}
+async function sbSaveConfig(nid,cfg){
+  await sb.from('negocio_config').upsert({negocio_id:nid,user_id:currentUser.id,config:cfg,updated_at:new Date().toISOString()},{onConflict:'negocio_id'});
+}
 
 /* STATE */
 let ST = {
   year:     new Date().getFullYear(),
-  meta:     null, data:     null, cfg:  null,
+  meta:     null, data: null, cfg: null,
   page:     'dashboard',
   sbCol:    false,
   charts:   {},
@@ -501,6 +520,7 @@ let ST = {
   negocio:  null,
   plan:     'estandar',
   secOcultas: [],
+  pins:     {},
 };
 
 /* HELPERS */
@@ -539,41 +559,78 @@ function makeSeed(tipo, year) {
   };
 }
 
-/* LOCALSTORAGE */
-function lsGet(k){try{var v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
-function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
-
+/* SAVE FUNCTIONS */
 var svTimer;
 function saveData(){
   document.getElementById('sv-ind').style.display='inline';
   clearTimeout(svTimer);
-  svTimer=setTimeout(function(){
-    lsSet(SK_DATA(ST.negocio.id,ST.year),ST.data);
+  svTimer=setTimeout(async function(){
+    await sbSaveData(ST.negocio.id, ST.year, ST.data);
     document.getElementById('sv-ind').style.display='none';
-  },400);
+  },600);
 }
-function saveCfg(){lsSet(SK_CFG(ST.negocio.id),ST.cfg);}
-function saveMeta(){lsSet(SK_META(ST.negocio.id),ST.meta);}
+async function saveCfg(){
+  // Store secOcultas and pins inside config
+  ST.cfg._secOcultas=ST.secOcultas;
+  ST.cfg._pins=ST.pins;
+  await sbSaveConfig(ST.negocio.id, ST.cfg);
+}
+async function saveMeta(){
+  // Meta stored inside config as _meta
+  ST.cfg._meta=ST.meta;
+  await sbSaveConfig(ST.negocio.id, ST.cfg);
+}
 
 /* INIT */
-function init(){
-  var negocios=lsGet(SK_NEGOCIOS);
+async function init(){
+  // Show loading
+  document.getElementById('content').innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:60vh;flex-direction:column;gap:16px"><div style="font-size:32px;animation:spin 1s linear infinite">⚙️</div><p style="color:var(--textm)">Cargando...</p></div>';
+
+  // Load negocios from Supabase
+  var negocios=await sbGetNegocios();
   if(!negocios||negocios.length===0){
-    negocios=[{id:'neg_default',nombre:'Mi Negocio',tipo:'hosteleria',emoji:'☕',color:'#2563eb'}];
-    lsSet(SK_NEGOCIOS,negocios);
+    // Create default negocio
+    var defNeg={id:'neg_'+currentUser.id.slice(0,8),nombre:'Mi Negocio',tipo:'hosteleria',emoji:'☕',color:'#2563eb'};
+    await sbSaveNegocio(defNeg);
+    negocios=[defNeg];
   }
   ST.negocios=negocios;
-  ST.plan=lsGet(SK_PLAN)||'estandar';
-  var actId=lsGet(SK_NEG_ACT);
-  ST.negocio=negocios.find(function(n){return n.id===actId;})||negocios[0];
-  lsSet(SK_NEG_ACT,ST.negocio.id);
-  ST.meta=lsGet(SK_META(ST.negocio.id))||{years:[new Date().getFullYear()]};
-  ST.cfg=lsGet(SK_CFG(ST.negocio.id))||JSON.parse(JSON.stringify(CFG_POR_TIPO[ST.negocio.tipo]||CFG_POR_TIPO.generico));
-  if(!ST.meta.years.includes(ST.year)) ST.year=ST.meta.years[ST.meta.years.length-1];
-  ST.data=lsGet(SK_DATA(ST.negocio.id,ST.year))||makeSeed(ST.negocio.tipo,ST.year);
-  ST.secOcultas=lsGet(SK_SECOCULTAS(ST.negocio.id))||[];
-  document.documentElement.style.setProperty('--accent',ST.negocio.color);
+  ST.plan=userProfile&&userProfile.plan?userProfile.plan:'estandar';
+  ST.negocio=negocios[0];
+
+  await loadNegocio(ST.negocio);
   buildSidebar(); buildYearSel(); navigate('dashboard');
+}
+
+async function loadNegocio(neg){
+  ST.negocio=neg;
+  document.documentElement.style.setProperty('--accent',neg.color);
+
+  // Load config
+  var cfg=await sbGetConfig(neg.id);
+  if(!cfg){
+    ST.cfg=JSON.parse(JSON.stringify(CFG_POR_TIPO[neg.tipo]||CFG_POR_TIPO.generico));
+  } else {
+    ST.cfg=cfg;
+  }
+  // Extract meta, secOcultas, pins from config
+  ST.meta=ST.cfg._meta||{years:[new Date().getFullYear()]};
+  ST.secOcultas=ST.cfg._secOcultas||[];
+  ST.pins=ST.cfg._pins||{};
+  if(!ST.meta.years)ST.meta.years=[new Date().getFullYear()];
+  if(!ST.meta.years.includes(ST.year))ST.year=ST.meta.years[ST.meta.years.length-1];
+
+  // Load data
+  var data=await sbGetData(neg.id,ST.year);
+  if(!data){
+    ST.data=makeSeed(neg.tipo,ST.year);
+    await sbSaveData(neg.id,ST.year,ST.data);
+  } else {
+    ST.data=data;
+    // Ensure all arrays exist
+    var arrays=['transacciones','albaranes','tareas','empleados','turnos','reservas','cajas','documentos'];
+    arrays.forEach(function(k){if(!ST.data[k])ST.data[k]=[];});
+  }
 }
 
 /* SIDEBAR */
@@ -641,13 +698,15 @@ function closeYrPopup(){if(yrPopup){yrPopup.remove();yrPopup=null;}}
 function doAddYear(){
   var y=parseInt(document.getElementById('yr-inp').value);
   if(!y||y<2000||y>2099||ST.meta.years.includes(y)){showToast('Ano no valido','#dc2626');return;}
-  ST.meta.years.push(y);saveMeta();
-  lsSet(SK_DATA(ST.negocio.id,y),makeSeed(ST.negocio.tipo,y));
+  ST.meta.years.push(y);await saveMeta();
+  ST.data=makeSeed(ST.negocio.tipo,y);await sbSaveData(ST.negocio.id,y,ST.data);
   closeYrPopup();switchYear(y);showToast('Ano '+y+' creado','#059669');
 }
-function switchYear(y){
+async function switchYear(y){
   ST.year=y;
-  ST.data=lsGet(SK_DATA(ST.negocio.id,y))||makeSeed(ST.negocio.tipo,y);
+  var d=await sbGetData(ST.negocio.id,y);
+  ST.data=d||makeSeed(ST.negocio.tipo,y);
+  if(!d)await sbSaveData(ST.negocio.id,y,ST.data);
   buildYearSel();navigate(ST.page);
 }
 
@@ -2242,7 +2301,7 @@ function pgNegocio(el){
   var planInfo=PLANES_NEG[plan]||PLANES_NEG.estandar;
   var maxN=planInfo.maxNegocios;
   var negocios=ST.negocios||[];
-  var pins=lsGet(SK_PINS)||{};
+  var pins=ST.pins||{};
   var h='<div class="ph"><div><div class="pt">Mis Negocios</div><div class="ps">Plan '+planInfo.nombre+' · Hasta '+maxN+' negocio'+(maxN>1?'s':'')+'</div></div>'
     +(negocios.length<maxN?'<button class="btn btn-primary" onclick="openNuevoNeg()">+ Nuevo negocio</button>':'')
     +'</div>'
@@ -2279,8 +2338,7 @@ function pgNegocio(el){
 function editPinBtn(btn){
   var id=btn.getAttribute('data-nid');
   var neg=ST.negocios.find(function(n){return n.id===id;});if(!neg)return;
-  var pins=lsGet(SK_PINS)||{};
-  var tienePin=!!pins[id];
+  var tienePin=!!(ST.pins&&ST.pins[id]);
   openModal((tienePin?'Cambiar PIN':'Establecer PIN')+' — '+neg.nombre,
     '<div style="display:flex;flex-direction:column;gap:12px">'
     +(tienePin?'<div class="fg"><label class="fl">PIN actual</label><input type="password" id="pin-act" class="fi" maxlength="6" placeholder="PIN actual" style="letter-spacing:4px"></div>':'')
@@ -2291,8 +2349,7 @@ function editPinBtn(btn){
 }
 function savePin(btn){
   var id=btn.getAttribute('data-nid');
-  var pins=lsGet(SK_PINS)||{};
-  var tienePin=!!pins[id];
+  var tienePin=!!(ST.pins&&ST.pins[id]);
   var actEl=document.getElementById('pin-act');
   var newVal=(document.getElementById('pin-new').value||'').trim();
   var conf=(document.getElementById('pin-confirm').value||'').trim();
@@ -2303,7 +2360,7 @@ function savePin(btn){
   if(newVal&&newVal!==conf){document.getElementById('pin-confirm').style.borderColor='#dc2626';showToast('Los PINs no coinciden','#dc2626');return;}
   if(newVal){pins[id]=newVal;showToast('PIN guardado','#059669');}
   else{delete pins[id];showToast('PIN eliminado','#d97706');}
-  lsSet(SK_PINS,pins);
+  await saveCfg();
   closeModal();navigate('negocio');
 }
 
@@ -2312,8 +2369,7 @@ function switchNegBtn(btn){
   if(!id)return;
   var neg=ST.negocios.find(function(n){return n.id===id;});
   if(!neg)return;
-  var pins=lsGet(SK_PINS)||{};
-  var pin=pins[id];
+  var pin=ST.pins&&ST.pins[id];
   if(pin){
     openModal('PIN requerido',
       '<div style="display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center">'
@@ -2333,23 +2389,16 @@ function confirmPin(negId,pin){
   if(inp.value===pin){closeModal();doSwitchNeg(negId);}
   else{inp.value='';inp.style.borderColor='#dc2626';showToast('PIN incorrecto','#dc2626');}
 }
-function doSwitchNeg(id){
+async function doSwitchNeg(id){
   var neg=ST.negocios.find(function(n){return n.id===id;});if(!neg)return;
-  ST.negocio=neg;
-  lsSet(SK_NEG_ACT,neg.id);
-  document.documentElement.style.setProperty('--accent',neg.color);
-  ST.meta=lsGet(SK_META(neg.id))||{years:[new Date().getFullYear()]};
-  ST.cfg=lsGet(SK_CFG(neg.id))||JSON.parse(JSON.stringify(CFG_POR_TIPO[neg.tipo]||CFG_POR_TIPO.generico));
-  ST.year=ST.meta.years.includes(new Date().getFullYear())?new Date().getFullYear():ST.meta.years[ST.meta.years.length-1];
-  ST.data=lsGet(SK_DATA(neg.id,ST.year))||makeSeed(neg.tipo,ST.year);
-  ST.secOcultas=lsGet(SK_SECOCULTAS(neg.id))||[];
+  await loadNegocio(neg);
   buildYearSel();buildSidebar();navigate('dashboard');
   showToast('Cambiado a '+neg.nombre,neg.color);
 }
 
 function setPlanBtn(btn){
   var pid=btn.getAttribute('data-plan');
-  ST.plan=pid;lsSet(SK_PLAN,pid);navigate('negocio');showToast('Plan: '+PLANES_NEG[pid].nombre,'#059669');
+  ST.plan=pid;navigate('negocio');showToast('Plan: '+PLANES_NEG[pid].nombre,'#059669');
 }
 
 function openNuevoNeg(){
@@ -2367,17 +2416,14 @@ function saveNuevoNeg(){
   if(!nombre){showToast('Escribe el nombre','#dc2626');return;}
   var id='neg_'+Date.now();
   var neg={id:id,nombre:nombre,tipo:document.getElementById('nn-t').value,emoji:document.getElementById('nn-e').value||'🏢',color:document.getElementById('nn-col').value||'#2563eb'};
-  ST.negocios.push(neg);lsSet(SK_NEGOCIOS,ST.negocios);
-  lsSet(SK_META(id),{years:[new Date().getFullYear()]});
-  lsSet(SK_CFG(id),JSON.parse(JSON.stringify(CFG_POR_TIPO[neg.tipo]||CFG_POR_TIPO.generico)));
-  lsSet(SK_DATA(id,new Date().getFullYear()),makeSeed(neg.tipo,new Date().getFullYear()));
+  await sbSaveNegocio(neg);
+  ST.negocios.push(neg);
   closeModal();
-  ST.negocio=neg;lsSet(SK_NEG_ACT,neg.id);
+  ST.negocio=neg;
   document.documentElement.style.setProperty('--accent',neg.color);
   ST.meta={years:[new Date().getFullYear()]};
   ST.cfg=JSON.parse(JSON.stringify(CFG_POR_TIPO[neg.tipo]||CFG_POR_TIPO.generico));
-  ST.year=new Date().getFullYear();
-  ST.data=lsGet(SK_DATA(id,ST.year));
+  await loadNegocio(neg);
   buildYearSel();buildSidebar();navigate('negocio');showToast('Negocio creado','#059669');
 }
 function editNegBtn(btn){
@@ -2399,7 +2445,7 @@ function saveEditNegBtn(btn){
   ST.negocios[idx].emoji=document.getElementById('en-e').value||ST.negocios[idx].emoji;
   ST.negocios[idx].tipo=document.getElementById('en-t').value;
   ST.negocios[idx].color=document.getElementById('en-col').value;
-  lsSet(SK_NEGOCIOS,ST.negocios);
+  await sbSaveNegocio(ST.negocios[idx]);
   if(ST.negocio.id===id){
     ST.negocio=ST.negocios[idx];
     document.documentElement.style.setProperty('--accent',ST.negocio.color);
@@ -2410,8 +2456,7 @@ function saveEditNegBtn(btn){
 function delNegBtn(btn){
   var id=btn.getAttribute('data-nid');
   var neg=ST.negocios.find(function(n){return n.id===id;});if(!neg)return;
-  var pins=lsGet(SK_PINS)||{};
-  var pin=pins[id];
+  var pin=ST.pins&&ST.pins[id];
   if(pin){
     openModal('Eliminar '+neg.nombre,
       '<div style="display:flex;flex-direction:column;gap:14px">'
@@ -2443,18 +2488,11 @@ function confirmDelNegNombre(id,nombre){
   else{inp.style.borderColor='#dc2626';showToast('Nombre incorrecto','#dc2626');}
 }
 function doDelNeg(id){
-  var pins=lsGet(SK_PINS)||{};
-  delete pins[id];lsSet(SK_PINS,pins);
+  await sbDeleteNegocio(id);
+  if(ST.pins)delete ST.pins[id];
   ST.negocios=ST.negocios.filter(function(n){return n.id!==id;});
-  lsSet(SK_NEGOCIOS,ST.negocios);
   if(ST.negocio.id===id){
-    ST.negocio=ST.negocios[0];lsSet(SK_NEG_ACT,ST.negocio.id);
-    document.documentElement.style.setProperty('--accent',ST.negocio.color);
-    ST.meta=lsGet(SK_META(ST.negocio.id))||{years:[new Date().getFullYear()]};
-    ST.cfg=lsGet(SK_CFG(ST.negocio.id))||JSON.parse(JSON.stringify(CFG_POR_TIPO[ST.negocio.tipo]||CFG_POR_TIPO.generico));
-    ST.year=new Date().getFullYear();
-    ST.data=lsGet(SK_DATA(ST.negocio.id,ST.year))||makeSeed(ST.negocio.tipo,ST.year);
-    ST.secOcultas=lsGet(SK_SECOCULTAS(ST.negocio.id))||[];
+    await loadNegocio(ST.negocios[0]);
     buildYearSel();buildSidebar();navigate('dashboard');
   } else navigate('negocio');
   showToast('Negocio eliminado','#d97706');
@@ -2499,7 +2537,7 @@ function pgAjustes(el){
     +'<div class="card" style="border-style:dashed"><div style="display:flex;gap:8px"><input type="text" id="new-cg" class="fi" placeholder="Nueva categoria de gasto..." style="flex:1" onkeydown="if(event.key===\'Enter\')addCG()"><button class="btn btn-primary" onclick="addCG()">Anadir</button></div></div>'
     +'</div></div>';
 }
-function toggleSeccion(btn){
+async function toggleSeccion(btn){
   var id=btn.getAttribute('data-sid');
   if(ST.secOcultas.includes(id)){
     ST.secOcultas=ST.secOcultas.filter(function(s){return s!==id;});
@@ -2507,17 +2545,17 @@ function toggleSeccion(btn){
     ST.secOcultas.push(id);
     if(ST.page===id) navigate('dashboard');
   }
-  lsSet(SK_SECOCULTAS(ST.negocio.id),ST.secOcultas);
+  await saveCfg();
   buildSidebar();
   navigate('ajustes');
 }
-function delCV(btn){var i=parseInt(btn.getAttribute('data-ci'));ST.cfg.catVentas.splice(i,1);saveCfg();navigate('ajustes');}
-function addCV(){var v=document.getElementById('new-cv').value.trim();if(!v)return;ST.cfg.catVentas.push(v);saveCfg();navigate('ajustes');}
-function delCG(btn){var ci=parseInt(btn.getAttribute('data-ci'));if(confirm('Eliminar categoria?')){ST.cfg.catGastos.splice(ci,1);saveCfg();navigate('ajustes');}}
-function addCG(){var v=document.getElementById('new-cg').value.trim();if(!v)return;ST.cfg.catGastos.push({nombre:v,items:[]});saveCfg();navigate('ajustes');}
-function addCGI(ci){var v=document.getElementById('new-cgi-'+ci).value.trim();if(!v)return;ST.cfg.catGastos[ci].items.push(v);saveCfg();navigate('ajustes');}
-function delCGI(btn){var ci=parseInt(btn.getAttribute('data-ci')),ii=parseInt(btn.getAttribute('data-ii'));ST.cfg.catGastos[ci].items.splice(ii,1);saveCfg();navigate('ajustes');}
-function renCG(btn){var ci=parseInt(btn.getAttribute('data-ci'));var n=prompt('Nuevo nombre:',ST.cfg.catGastos[ci].nombre);if(n&&n.trim()){ST.cfg.catGastos[ci].nombre=n.trim();saveCfg();navigate('ajustes');}}
+async function delCV(btn){var i=parseInt(btn.getAttribute('data-ci'));ST.cfg.catVentas.splice(i,1);await saveCfg();navigate('ajustes');}
+async function addCV(){var v=document.getElementById('new-cv').value.trim();if(!v)return;ST.cfg.catVentas.push(v);await saveCfg();navigate('ajustes');}
+async function delCG(btn){var ci=parseInt(btn.getAttribute('data-ci'));if(confirm('Eliminar categoria?')){ST.cfg.catGastos.splice(ci,1);await saveCfg();navigate('ajustes');}}
+async function addCG(){var v=document.getElementById('new-cg').value.trim();if(!v)return;ST.cfg.catGastos.push({nombre:v,items:[]});await saveCfg();navigate('ajustes');}
+async function addCGI(ci){var v=document.getElementById('new-cgi-'+ci).value.trim();if(!v)return;ST.cfg.catGastos[ci].items.push(v);await saveCfg();navigate('ajustes');}
+async function delCGI(btn){var ci=parseInt(btn.getAttribute('data-ci')),ii=parseInt(btn.getAttribute('data-ii'));ST.cfg.catGastos[ci].items.splice(ii,1);await saveCfg();navigate('ajustes');}
+async function renCG(btn){var ci=parseInt(btn.getAttribute('data-ci'));var n=prompt('Nuevo nombre:',ST.cfg.catGastos[ci].nombre);if(n&&n.trim()){ST.cfg.catGastos[ci].nombre=n.trim();await saveCfg();navigate('ajustes');}}
 
 /* BACKUP */
 function pgBackup(el){
@@ -2530,11 +2568,11 @@ function pgBackup(el){
     +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input type="file" id="bk-f" accept=".json" style="font-size:13px;color:var(--textm)"><button class="btn btn-danger" onclick="impBackup()">📥 Restaurar</button></div>'
     +'<p id="bk-msg" style="font-size:12px;margin-top:10px;display:none"></p></div>'
     +'<div class="card"><div class="st">ANOS DISPONIBLES</div>'
-    +'<div style="display:flex;flex-wrap:wrap;gap:10px">'+ST.meta.years.map(function(y){var d=lsGet(SK_DATA(ST.negocio.id,y))||{transacciones:[]};return '<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 16px;text-align:center"><div style="font-weight:700;font-size:18px;color:var(--accent)">'+y+'</div><div style="font-size:11px;color:var(--textd);margin-top:2px">'+d.transacciones.length+' transacciones</div></div>';}).join('')+'</div></div>';
+    +'<div style="display:flex;flex-wrap:wrap;gap:10px">'+ST.meta.years.map(function(y){var d=ST.data||{transacciones:[]};return '<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 16px;text-align:center"><div style="font-weight:700;font-size:18px;color:var(--accent)">'+y+'</div><div style="font-size:11px;color:var(--textd);margin-top:2px">'+d.transacciones.length+' transacciones</div></div>';}).join('')+'</div></div>';
 }
 function expBackup(){
   var backup={negocio:ST.negocio.nombre,negocioId:ST.negocio.id,fecha:new Date().toISOString(),version:'lokali_2',meta:ST.meta,cfg:ST.cfg,datos:{}};
-  ST.meta.years.forEach(function(y){var d=lsGet(SK_DATA(ST.negocio.id,y));if(d)backup.datos[y]=d;});
+  backup.datos[ST.year]=ST.data;
   backup.datos[ST.year]=ST.data;
   var blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
   var url=URL.createObjectURL(blob);
@@ -2552,9 +2590,9 @@ function impBackup(){
       var bk=JSON.parse(e.target.result);
       if(!bk.meta||!bk.cfg||!bk.datos)throw new Error();
       ST.meta=bk.meta;ST.cfg=bk.cfg;saveMeta();saveCfg();
-      Object.entries(bk.datos).forEach(function(entry){lsSet(SK_DATA(ST.negocio.id,parseInt(entry[0])),entry[1]);});
+      for(var entry of Object.entries(bk.datos)){await sbSaveData(ST.negocio.id,parseInt(entry[0]),entry[1]);}
       var ys=ST.meta.years;ST.year=ys.includes(new Date().getFullYear())?new Date().getFullYear():ys[ys.length-1];
-      ST.data=lsGet(SK_DATA(ST.negocio.id,ST.year))||makeSeed(ST.negocio.tipo,ST.year);
+      ST.data=(await sbGetData(ST.negocio.id,ST.year))||makeSeed(ST.negocio.tipo,ST.year);
       buildYearSel();navigate('dashboard');
       if(msg){msg.style.display='block';msg.style.color='#059669';msg.textContent='Restaurado correctamente';}
       showToast('Datos restaurados','#059669');
@@ -2565,7 +2603,7 @@ function impBackup(){
 function expXLSX(){
   var wb=XLSX.utils.book_new();
   ST.meta.years.forEach(function(y){
-    var d=lsGet(SK_DATA(ST.negocio.id,y))||ST.data;
+    var d=ST.data;
     if(!d||!d.transacciones||!d.transacciones.length)return;
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(d.transacciones.map(function(t){return{Fecha:t.fecha,Tipo:t.tipo,Categoria:t.categoria,Concepto:t.concepto,Pago:t.pago,Importe:t.importe};})),'TX_'+y);
   });
@@ -2575,7 +2613,7 @@ function expXLSX(){
 
 /* SUPABASE + AUTH */
 const SUPABASE_URL='https://rprwhtaobrfergpqjvie.supabase.co';
-const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwcndodGFvYnJmZXJncHFqdmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNzQ4NTUsImV4cCI6MjA5Njg1MDg1NX0.eS5VU0ZEe7Kk5AFq_JEqhNsAD_0urfPK5axPWm3xfv8';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqcGpxcnN5emtlZ2hvZnppZWp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4NTI1MjYsImV4cCI6MjA5NDQyODUyNn0.httUrRI99cAO1YpiZzfcFcIAj5y41QB817b9pdfjbI4';
 const ADMIN_EMAIL='nadius76@hotmail.com';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
