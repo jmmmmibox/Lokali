@@ -2747,6 +2747,19 @@ async function onLogin(user){
     }
   }
 
+  // Banner de cancelación programada
+  if(!esAdmin&&!esGratis&&profile.cancela_el&&planActivo){
+    var diasCancel=Math.ceil((new Date(profile.cancela_el+'T23:59:59')-new Date())/(1000*60*60*24));
+    var banner=document.getElementById('trial-banner');
+    banner.style.display='flex';
+    banner.style.background='linear-gradient(90deg,#78350f,#1e293b)';
+    banner.style.borderColor='#d97706';
+    document.getElementById('trial-days-text').textContent='⚠️ Tu suscripción se cancela el '+profile.cancela_el+' — '+diasCancel+' día'+(diasCancel!==1?'s':'')+' restantes';
+    document.getElementById('trial-days-text').style.color='#fde68a';
+    var btnActivar=banner.querySelector('button');
+    if(btnActivar)btnActivar.style.display='none';
+  }
+
   // Añadir botones al sidebar footer
   setTimeout(function(){
     var footer=document.querySelector('.sb-footer');
@@ -2989,8 +3002,19 @@ async function ejecutarCancelacion(){
     var data=await res.json();
     if(!res.ok)throw new Error(data.error||'Error al cancelar');
     closeModal();
-    showToast('Suscripción cancelada','#d97706');
-    setTimeout(function(){doLogout();},1500);
+    // Update local profile
+    userProfile.cancela_el=data.cancela_el;
+    // Show cancellation banner
+    var banner=document.getElementById('trial-banner');
+    var diasCancel=Math.ceil((new Date(data.cancela_el+'T23:59:59')-new Date())/(1000*60*60*24));
+    banner.style.display='flex';
+    banner.style.background='linear-gradient(90deg,#78350f,#1e293b)';
+    banner.style.borderColor='#d97706';
+    document.getElementById('trial-days-text').textContent='⚠️ Tu suscripción se cancela el '+data.cancela_el+' — '+diasCancel+' día'+(diasCancel!==1?'s':'')+' restantes';
+    document.getElementById('trial-days-text').style.color='#fde68a';
+    var btnActivar=banner.querySelector('button');
+    if(btnActivar)btnActivar.style.display='none';
+    showToast('Suscripción cancelada. Acceso hasta '+data.cancela_el,'#d97706');
   }catch(e){
     if(err){err.textContent=e.message;err.style.display='block';}
     btn.disabled=false;btn.textContent='Cancelar suscripción';
