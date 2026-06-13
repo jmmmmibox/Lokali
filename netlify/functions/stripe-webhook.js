@@ -17,48 +17,47 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: `Webhook Error: ${err.message}` };
   }
 
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY
+  );
+
   if (stripeEvent.type === 'checkout.session.completed') {
     const session = stripeEvent.data.object;
     const userId = session.metadata?.userId;
 
     if (userId) {
-      const supabase = createClient(
-        process.env.SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_KEY
-      );
-
       const { error } = await supabase
         .from('usuarios')
         .update({
           plan: 'premium',
           activo: true,
+          cancela_el: null,
           stripe_customer_id: session.customer,
           stripe_subscription_id: session.subscription,
         })
         .eq('id', userId);
 
-      if (error) {
-        console.error('Supabase update error:', error);
-        return { statusCode: 500, body: 'Supabase error' };
-      }
-
-      console.log('Usuario activado:', userId);
+      if (error) console.error('Supabase update error:', error);
+      else console.log('Usuario activado:', userId);
     }
   }
 
   if (stripeEvent.type === 'customer.subscription.deleted') {
     const subscription = stripeEvent.data.object;
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
-    );
 
-    await supabase
+    const { error } = await supabase
       .from('usuarios')
-      .update({ activo: false, plan: 'trial' })
+      .update({
+        activo: false,
+        plan: 'trial',
+        cancela_el: null,
+        stripe_subscription_id: null,
+      })
       .eq('stripe_subscription_id', subscription.id);
 
-    console.log('Suscripción cancelada:', subscription.id);
+    if (error) console.error('Supabase cancel error:', error);
+    else console.log('Suscripción finalizada:', subscription.id);
   }
 
   return { statusCode: 200, body: JSON.stringify({ received: true }) };
