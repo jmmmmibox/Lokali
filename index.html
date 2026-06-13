@@ -364,9 +364,9 @@ td{padding:9px 10px;vertical-align:middle}
 <!-- APP SCREEN -->
 <div id="app-screen">
   <div id="trial-banner" style="display:none" class="trial-banner">
-    <span class="trial-text">🎁 Periodo de prueba gratuito</span>
+    <span id="trial-label" class="trial-text"></span>
     <span id="trial-days-text" class="trial-days"></span>
-    <button onclick="scrollToPlanes()" style="background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Activar plan →</button>
+    <button id="trial-btn" onclick="scrollToPlanes()" style="background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Activar plan →</button>
   </div>
 <div class="ov" id="ov" onclick="closeSB()"></div>
 <div id="app">
@@ -2737,6 +2737,8 @@ async function onLogin(user){
     var diasLeft=Math.ceil((new Date(profile.trial_hasta+'T23:59:59')-new Date())/(1000*60*60*24));
     var banner=document.getElementById('trial-banner');
     banner.style.display='flex';
+    document.getElementById('trial-label').textContent='Prueba gratuita';
+    document.getElementById('trial-btn').style.display='';
     if(diasLeft<=3){
       banner.style.background='linear-gradient(90deg,#7f1d1d,#1e293b)';
       banner.style.borderColor='#dc2626';
@@ -2754,10 +2756,10 @@ async function onLogin(user){
     banner.style.display='flex';
     banner.style.background='linear-gradient(90deg,#78350f,#1e293b)';
     banner.style.borderColor='#d97706';
-    document.getElementById('trial-days-text').textContent='⚠️ Tu suscripción se cancela el '+profile.cancela_el+' — '+diasCancel+' día'+(diasCancel!==1?'s':'')+' restantes';
+    document.getElementById('trial-label').textContent='Suscripción cancelada';
+    document.getElementById('trial-days-text').textContent='Acceso hasta '+profile.cancela_el+' — '+diasCancel+' día'+(diasCancel!==1?'s':'')+' restantes';
     document.getElementById('trial-days-text').style.color='#fde68a';
-    var btnActivar=banner.querySelector('button');
-    if(btnActivar)btnActivar.style.display='none';
+    document.getElementById('trial-btn').style.display='none';
   }
 
   // Añadir botones al sidebar footer
@@ -2830,7 +2832,7 @@ async function loadAdminData(){
       +'</select>'
       +'<button data-uid="'+u.id+'" data-dias="-7" onclick="adminAjustarTrial(this)" style="background:#0f172a;border:1px solid #334155;color:#f87171;border-radius:6px;padding:4px 7px;font-size:11px;cursor:pointer;font-family:inherit" title="Restar 7 días">-7d</button>'
       +'<button data-uid="'+u.id+'" data-dias="7" onclick="adminAjustarTrial(this)" style="background:#1e3a5f;border:none;color:#60a5fa;border-radius:6px;padding:4px 7px;font-size:11px;cursor:pointer;font-family:inherit" title="Añadir 7 días">+7d</button>'
-      +'<input type="date" data-uid="'+u.id+'" value="'+(u.trial_hasta||'')+'" onchange="adminSetTrialFecha(this)" style="background:#0f172a;border:1px solid #334155;color:#94a3b8;border-radius:6px;padding:3px 6px;font-size:11px;cursor:pointer;font-family:inherit;width:120px" title="Fijar fecha exacta">'
+      +'<button data-uid="'+u.id+'" data-trial="'+(u.trial_hasta||'')+'" onclick="adminEditarFechaTrial(this)" style="background:#0f172a;border:1px solid #334155;color:#94a3b8;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-family:inherit" title="Cambiar fecha">📅</button>'
       +(u.email!==ADMIN_EMAIL?'<button data-uid="'+u.id+'" data-email="'+u.email+'" onclick="adminEliminarUsuario(this)" style="background:#450a0a;border:none;color:#f87171;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-family:inherit" title="Eliminar usuario">✕</button>':'')
       +'</div></td>'
       +'</tr>';
@@ -2857,13 +2859,26 @@ async function adminAjustarTrial(btn){
   showToast((dias>0?'+':'')+dias+' días → '+nuevaFecha,'#059669');
   await loadAdminData();
 }
-async function adminSetTrialFecha(input){
-  var uid=input.getAttribute('data-uid');
-  var fecha=input.value;
+async function adminSetTrialFecha(uid, fecha){
   if(!fecha)return;
-  await sb.from('usuarios').update({trial_hasta:fecha,plan:'trial'}).eq('id',uid);
-  showToast('Trial hasta '+fecha,'#059669');
+  await sb.from('usuarios').update({trial_hasta:fecha}).eq('id',uid);
+  showToast('Fecha actualizada: '+fecha,'#059669');
   await loadAdminData();
+}
+function adminEditarFechaTrial(btn){
+  var uid=btn.getAttribute('data-uid');
+  var actual=btn.getAttribute('data-trial')||'';
+  var modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML='<div style="background:#1e293b;border:1px solid #334155;border-radius:16px;padding:28px;width:100%;max-width:320px;text-align:center">'
+    +'<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:16px">Cambiar fecha trial</div>'
+    +'<div style="margin-bottom:8px;font-size:12px;color:#64748b">Fecha actual: '+(actual||'sin fecha')+'</div>'
+    +'<input type="date" id="adm-fecha-trial" value="'+actual+'" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px 12px;color:#fff;font-size:14px;outline:none;font-family:inherit;box-sizing:border-box;margin-bottom:16px">'
+    +'<div style="display:flex;gap:8px;justify-content:center">'
+    +'<button onclick="this.closest(\'div[style]\').remove()" style="background:#0f172a;border:1px solid #334155;color:#94a3b8;border-radius:8px;padding:9px 18px;cursor:pointer;font-size:13px;font-family:inherit">Cancelar</button>'
+    +'<button onclick="var f=document.getElementById(\'adm-fecha-trial\').value;if(f){adminSetTrialFecha(\''+uid+'\',f);this.closest(\'div[style]\').remove();}" style="background:#3b82f6;border:none;color:#fff;border-radius:8px;padding:9px 18px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit">Guardar</button>'
+    +'</div></div>';
+  document.body.appendChild(modal);
 }
 async function adminToggleGratis(btn){
   var uid=btn.getAttribute('data-uid');
@@ -3010,10 +3025,10 @@ async function ejecutarCancelacion(){
     banner.style.display='flex';
     banner.style.background='linear-gradient(90deg,#78350f,#1e293b)';
     banner.style.borderColor='#d97706';
-    document.getElementById('trial-days-text').textContent='⚠️ Tu suscripción se cancela el '+data.cancela_el+' — '+diasCancel+' día'+(diasCancel!==1?'s':'')+' restantes';
+    document.getElementById('trial-label').textContent='Suscripción cancelada';
+    document.getElementById('trial-days-text').textContent='Acceso hasta '+data.cancela_el+' — '+diasCancel+' día'+(diasCancel!==1?'s':'')+' restantes';
     document.getElementById('trial-days-text').style.color='#fde68a';
-    var btnActivar=banner.querySelector('button');
-    if(btnActivar)btnActivar.style.display='none';
+    document.getElementById('trial-btn').style.display='none';
     showToast('Suscripción cancelada. Acceso hasta '+data.cancela_el,'#d97706');
   }catch(e){
     if(err){err.textContent=e.message;err.style.display='block';}
