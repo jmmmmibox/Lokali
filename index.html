@@ -2325,6 +2325,9 @@ function pgNegocio(el){
     +'<div><div style="font-size:18px;font-weight:800;color:var(--accent)">20€/mes · Todo incluido</div>'
     +'<div style="font-size:12px;color:var(--textm);margin-top:4px">Hasta 10 negocios · Todos los módulos · Soporte incluido</div></div>'
     +'<span style="background:var(--bluel);color:var(--accent);font-size:12px;font-weight:700;padding:6px 16px;border-radius:20px">Plan activo</span>'
+    +'</div>'
+    +'<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">'
+    +'<button onclick="cancelarSuscripcionStep1()" style="background:none;border:none;color:var(--textd);font-size:12px;cursor:pointer;font-family:inherit;text-decoration:underline">Cancelar suscripción</button>'
     +'</div></div>';
   el.innerHTML=h;
 }
@@ -2731,9 +2734,17 @@ async function onLogin(user){
 
   // Trial banner (solo usuarios no admin en trial)
   if(!esAdmin&&!esGratis&&enTrial){
-    var diasLeft=Math.ceil((new Date(profile.trial_hasta)-new Date())/(1000*60*60*24));
-    document.getElementById('trial-banner').style.display='flex';
-    document.getElementById('trial-days-text').textContent=diasLeft+' día'+(diasLeft!==1?'s':'')+' de prueba restantes';
+    var diasLeft=Math.ceil((new Date(profile.trial_hasta+'T23:59:59')-new Date())/(1000*60*60*24));
+    var banner=document.getElementById('trial-banner');
+    banner.style.display='flex';
+    if(diasLeft<=3){
+      banner.style.background='linear-gradient(90deg,#7f1d1d,#1e293b)';
+      banner.style.borderColor='#dc2626';
+      document.getElementById('trial-days-text').textContent='⚠️ '+diasLeft+' día'+(diasLeft!==1?'s':'')+' restantes — ¡Activa tu plan!';
+      document.getElementById('trial-days-text').style.color='#fca5a5';
+    } else {
+      document.getElementById('trial-days-text').textContent=diasLeft+' día'+(diasLeft!==1?'s':'')+' de prueba restantes';
+    }
   }
 
   // Añadir botones al sidebar footer
@@ -2920,6 +2931,69 @@ async function confirmAdminEliminar(btn){
   }catch(e){
     showToast('Error: '+e.message,'#dc2626');
     btn.disabled=false;btn.textContent='Eliminar';
+  }
+}
+
+function cancelarSuscripcionStep1(){
+  openModal('Cancelar suscripción',
+    '<div style="display:flex;flex-direction:column;gap:16px;text-align:center">'
+    +'<div style="font-size:40px">😢</div>'
+    +'<div style="font-size:15px;font-weight:700;color:var(--text)">¿Seguro que quieres cancelar?</div>'
+    +'<div style="font-size:13px;color:var(--textm);line-height:1.7">Al cancelar tu suscripción:</div>'
+    +'<div style="background:var(--bg);border-radius:10px;padding:14px;text-align:left">'
+    +'<div style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--textm)">'
+    +'<div style="display:flex;gap:8px;align-items:flex-start"><span style="color:#dc2626;font-weight:700;flex-shrink:0">✗</span> Perderás acceso a todos los módulos</div>'
+    +'<div style="display:flex;gap:8px;align-items:flex-start"><span style="color:#dc2626;font-weight:700;flex-shrink:0">✗</span> Tus datos se mantendrán 30 días antes de ser eliminados</div>'
+    +'<div style="display:flex;gap:8px;align-items:flex-start"><span style="color:#dc2626;font-weight:700;flex-shrink:0">✗</span> No podrás acceder a tu cuenta hasta que reactives el plan</div>'
+    +'</div></div>'
+    +'<div style="display:flex;gap:10px;justify-content:center">'
+    +'<button class="btn btn-primary" onclick="closeModal()">Mantener mi plan</button>'
+    +'<button style="background:#450a0a;border:none;color:#fca5a5;border-radius:10px;padding:11px 18px;font-size:13px;cursor:pointer;font-family:inherit" onclick="cancelarSuscripcionStep2()">Continuar cancelación</button>'
+    +'</div></div>');
+}
+
+function cancelarSuscripcionStep2(){
+  closeModal();
+  setTimeout(function(){
+    openModal('Confirmar cancelación',
+      '<div style="display:flex;flex-direction:column;gap:16px;text-align:center">'
+      +'<div style="font-size:40px">⚠️</div>'
+      +'<div style="font-size:15px;font-weight:700;color:#dc2626">Esta acción es definitiva</div>'
+      +'<div style="font-size:13px;color:var(--textm);line-height:1.7">Escribe <strong style="color:var(--text)">CANCELAR</strong> para confirmar que deseas cancelar tu suscripción.</div>'
+      +'<input type="text" id="cancel-confirm" class="fi" placeholder="Escribe CANCELAR" style="text-align:center;font-size:14px;letter-spacing:2px">'
+      +'<div id="cancel-err" style="color:#f87171;font-size:12px;display:none"></div>'
+      +'<div style="display:flex;gap:10px;justify-content:center">'
+      +'<button class="btn btn-secondary" onclick="closeModal()">Volver</button>'
+      +'<button id="btn-cancel-final" style="background:#7f1d1d;border:none;color:#fca5a5;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit" onclick="ejecutarCancelacion()">Cancelar suscripción</button>'
+      +'</div></div>');
+    setTimeout(function(){var el=document.getElementById('cancel-confirm');if(el)el.focus();},80);
+  },200);
+}
+
+async function ejecutarCancelacion(){
+  var inp=document.getElementById('cancel-confirm');
+  var err=document.getElementById('cancel-err');
+  if(!inp||inp.value.trim()!=='CANCELAR'){
+    if(err){err.textContent='Escribe CANCELAR para confirmar';err.style.display='block';}
+    if(inp)inp.style.borderColor='#dc2626';
+    return;
+  }
+  var btn=document.getElementById('btn-cancel-final');
+  btn.disabled=true;btn.textContent='Cancelando...';
+  try{
+    var res=await fetch('/.netlify/functions/cancel-subscription',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:currentUser.id})
+    });
+    var data=await res.json();
+    if(!res.ok)throw new Error(data.error||'Error al cancelar');
+    closeModal();
+    showToast('Suscripción cancelada','#d97706');
+    setTimeout(function(){doLogout();},1500);
+  }catch(e){
+    if(err){err.textContent=e.message;err.style.display='block';}
+    btn.disabled=false;btn.textContent='Cancelar suscripción';
   }
 }
 
