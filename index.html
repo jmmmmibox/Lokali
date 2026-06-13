@@ -2869,15 +2869,17 @@ async function adminSetTrialFecha(uid, fecha){
 function adminEditarFechaTrial(btn){
   var uid=btn.getAttribute('data-uid');
   var actual=btn.getAttribute('data-trial')||'';
+  if(document.getElementById('adm-modal'))document.getElementById('adm-modal').remove();
   var modal=document.createElement('div');
+  modal.id='adm-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
   modal.innerHTML='<div style="background:#1e293b;border:1px solid #334155;border-radius:16px;padding:28px;width:100%;max-width:320px;text-align:center">'
     +'<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:16px">Cambiar fecha trial</div>'
     +'<div style="margin-bottom:8px;font-size:12px;color:#64748b">Fecha actual: '+(actual?fmtDD(actual):'sin fecha')+'</div>'
     +'<input type="date" id="adm-fecha-trial" value="'+actual+'" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px 12px;color:#fff;font-size:14px;outline:none;font-family:inherit;box-sizing:border-box;margin-bottom:16px">'
     +'<div style="display:flex;gap:8px;justify-content:center">'
-    +'<button onclick="this.closest(\'div[style]\').remove()" style="background:#0f172a;border:1px solid #334155;color:#94a3b8;border-radius:8px;padding:9px 18px;cursor:pointer;font-size:13px;font-family:inherit">Cancelar</button>'
-    +'<button onclick="var f=document.getElementById(\'adm-fecha-trial\').value;if(f){adminSetTrialFecha(\''+uid+'\',f);this.closest(\'div[style]\').remove();}" style="background:#3b82f6;border:none;color:#fff;border-radius:8px;padding:9px 18px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit">Guardar</button>'
+    +'<button onclick="document.getElementById(\'adm-modal\').remove()" style="background:#0f172a;border:1px solid #334155;color:#94a3b8;border-radius:8px;padding:9px 18px;cursor:pointer;font-size:13px;font-family:inherit">Cancelar</button>'
+    +'<button onclick="var f=document.getElementById(\'adm-fecha-trial\').value;if(f){adminSetTrialFecha(\''+uid+'\',f);document.getElementById(\'adm-modal\').remove();}" style="background:#3b82f6;border:none;color:#fff;border-radius:8px;padding:9px 18px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit">Guardar</button>'
     +'</div></div>';
   document.body.appendChild(modal);
 }
@@ -2889,8 +2891,9 @@ async function adminToggleGratis(btn){
   await loadAdminData();
 }
 function adminNuevoUsuario(){
-  // Usar modal del app - necesitamos un modal propio para admin
+  if(document.getElementById('adm-modal'))document.getElementById('adm-modal').remove();
   var modal=document.createElement('div');
+  modal.id='adm-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
   modal.innerHTML='<div style="background:#1e293b;border:1px solid #334155;border-radius:16px;padding:28px;width:100%;max-width:400px">'
     +'<div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:20px">Nuevo usuario</div>'
@@ -2900,11 +2903,11 @@ function adminNuevoUsuario(){
     +'<div><label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">Nombre</label><input type="text" id="adm-nombre" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px 12px;color:#fff;font-size:13px;outline:none;font-family:inherit;box-sizing:border-box" placeholder="Nombre del usuario"></div>'
     +'<div><label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">Plan</label>'
     +'<select id="adm-plan" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px 12px;color:#fff;font-size:13px;outline:none;font-family:inherit;box-sizing:border-box">'
-    +'<option value="trial">Trial (7 días)</option><option value="basico">Básico</option><option value="estandar">Estándar</option><option value="premium">Premium</option></select></div>'
+    +'<option value="trial">Trial (7 días)</option><option value="premium">Activo</option></select></div>'
     +'<div style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="adm-gratis" style="width:16px;height:16px;accent-color:#a855f7"><label for="adm-gratis" style="font-size:13px;color:#d8b4fe;cursor:pointer">Acceso gratuito (sin pago)</label></div>'
     +'<div id="adm-err" style="color:#f87171;font-size:12px;display:none"></div>'
     +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">'
-    +'<button onclick="this.closest(\'div[style]\').remove()" style="background:#0f172a;border:1px solid #334155;color:#94a3b8;border-radius:8px;padding:9px 18px;cursor:pointer;font-size:13px;font-family:inherit">Cancelar</button>'
+    +'<button onclick="document.getElementById(\'adm-modal\').remove()" style="background:#0f172a;border:1px solid #334155;color:#94a3b8;border-radius:8px;padding:9px 18px;cursor:pointer;font-size:13px;font-family:inherit">Cancelar</button>'
     +'<button onclick="adminCrearUsuario(this)" style="background:#3b82f6;border:none;color:#fff;border-radius:8px;padding:9px 18px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit">Crear</button>'
     +'</div></div></div>';
   document.body.appendChild(modal);
@@ -2926,7 +2929,7 @@ async function adminCrearUsuario(btn){
     var uid=data.user.id;
     var trial=new Date();trial.setDate(trial.getDate()+7);
     await sb.from('usuarios').insert({id:uid,email,nombre:nombre||email.split('@')[0],plan,trial_hasta:trial.toISOString().split('T')[0],activo:true,gratis});
-    btn.closest('div[style]').remove();
+    var m=document.getElementById('adm-modal');if(m)m.remove();
     showToast('Usuario creado: '+email,'#059669');
     await loadAdminData();
   }catch(e){
@@ -2937,14 +2940,16 @@ async function adminCrearUsuario(btn){
 async function adminEliminarUsuario(btn){
   var uid=btn.getAttribute('data-uid');
   var email=btn.getAttribute('data-email');
+  if(document.getElementById('adm-modal'))document.getElementById('adm-modal').remove();
   var modal=document.createElement('div');
+  modal.id='adm-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
   modal.innerHTML='<div style="background:#1e293b;border:1px solid #334155;border-radius:16px;padding:28px;width:100%;max-width:360px;text-align:center">'
     +'<div style="font-size:32px;margin-bottom:12px">⚠️</div>'
     +'<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:8px">Eliminar usuario</div>'
     +'<div style="font-size:13px;color:#94a3b8;margin-bottom:20px">¿Eliminar <strong style="color:#fff">'+email+'</strong>?<br>Se eliminarán todos sus datos. No se puede deshacer.</div>'
     +'<div style="display:flex;gap:8px;justify-content:center">'
-    +'<button onclick="this.closest(\'div[style]\').remove()" style="background:#0f172a;border:1px solid #334155;color:#94a3b8;border-radius:8px;padding:9px 20px;cursor:pointer;font-size:13px;font-family:inherit">Cancelar</button>'
+    +'<button onclick="document.getElementById(\'adm-modal\').remove()" style="background:#0f172a;border:1px solid #334155;color:#94a3b8;border-radius:8px;padding:9px 20px;cursor:pointer;font-size:13px;font-family:inherit">Cancelar</button>'
     +'<button data-uid="'+uid+'" onclick="confirmAdminEliminar(this)" style="background:#7f1d1d;border:none;color:#fca5a5;border-radius:8px;padding:9px 20px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit">Eliminar</button>'
     +'</div></div>';
   document.body.appendChild(modal);
@@ -2954,7 +2959,7 @@ async function confirmAdminEliminar(btn){
   btn.disabled=true;btn.textContent='Eliminando...';
   try{
     await sb.from('usuarios').delete().eq('id',uid);
-    btn.closest('div[style]').remove();
+    var m=document.getElementById('adm-modal');if(m)m.remove();
     showToast('Usuario eliminado','#d97706');
     await loadAdminData();
   }catch(e){
