@@ -35,21 +35,24 @@ exports.handler = async (event) => {
       };
     }
 
-    // Cancel subscription at period end
-    await stripe.subscriptions.update(user.stripe_subscription_id, {
+    // Cancel subscription at period end (not immediately)
+    const subscription = await stripe.subscriptions.update(user.stripe_subscription_id, {
       cancel_at_period_end: true,
     });
 
-    // Update user status
+    // Get the end date of the current period
+    const cancelDate = new Date(subscription.current_period_end * 1000).toISOString().split('T')[0];
+
+    // Update user - keep active but mark cancellation date
     await supabase
       .from('usuarios')
-      .update({ activo: false, plan: 'trial' })
+      .update({ cancela_el: cancelDate })
       .eq('id', userId);
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true }),
+      body: JSON.stringify({ success: true, cancela_el: cancelDate }),
     };
   } catch (err) {
     console.error('Cancel error:', err);
