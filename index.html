@@ -2948,7 +2948,7 @@ document.addEventListener('DOMContentLoaded',async function(){
   // Handle return from Stripe
   var params=new URLSearchParams(window.location.search);
   if(params.get('payment')==='success'){
-    history.replaceState({},'',window.location.pathname);
+    history.replaceState({},'','/');
     // Reload profile and enter app
     var {data:{session}}=await sb.auth.getSession();
     if(session){
