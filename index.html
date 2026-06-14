@@ -2711,7 +2711,7 @@ async function onLogin(user){
   var {data:profile}=await sb.from('usuarios').select('*').eq('id',user.id).single();
   if(!profile){
     var trial=new Date();trial.setDate(trial.getDate()+7);
-    await sb.from('usuarios').insert({id:user.id,email:user.email,nombre:user.email.split('@')[0],plan:'basico',trial_hasta:trial.toISOString().split('T')[0],activo:true});
+    await sb.from('usuarios').insert({id:user.id,email:user.email,nombre:user.email.split('@')[0],plan:'trial',trial_hasta:trial.toISOString().split('T')[0],activo:true});
     var {data:p2}=await sb.from('usuarios').select('*').eq('id',user.id).single();
     profile=p2;
   }
