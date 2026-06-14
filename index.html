@@ -2988,9 +2988,15 @@ async function confirmAdminEliminar(btn){
   var uid=btn.getAttribute('data-uid');
   btn.disabled=true;btn.textContent='Eliminando...';
   try{
-    await sb.from('usuarios').delete().eq('id',uid);
+    var res=await fetch('/.netlify/functions/admin-delete-user',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({adminEmail:currentUser.email,userId:uid})
+    });
+    var data=await res.json();
+    if(!res.ok)throw new Error(data.error||'Error al eliminar');
     var m=document.getElementById('adm-modal');if(m)m.remove();
-    showToast('Usuario eliminado','#d97706');
+    showToast('Usuario eliminado completamente','#d97706');
     await loadAdminData();
   }catch(e){
     showToast('Error: '+e.message,'#dc2626');
