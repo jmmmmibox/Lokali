@@ -2328,7 +2328,9 @@ function pgNegocio(el){
     +'<span style="background:var(--bluel);color:var(--accent);font-size:12px;font-weight:700;padding:6px 16px;border-radius:20px">Plan activo</span>'
     +'</div>'
     +'<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">'
-    +'<button onclick="cancelarSuscripcionStep1()" style="background:none;border:none;color:var(--textd);font-size:12px;cursor:pointer;font-family:inherit;text-decoration:underline">Cancelar suscripción</button>'
+    +(userProfile&&userProfile.cancela_el
+      ?'<button onclick="reactivarSuscripcion()" style="background:#059669;border:none;color:#fff;font-size:12px;padding:8px 16px;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:600">Renovar plan →</button>'
+      :'<button onclick="cancelarSuscripcionStep1()" style="background:none;border:none;color:var(--textd);font-size:12px;cursor:pointer;font-family:inherit;text-decoration:underline">Cancelar suscripción</button>')
     +'</div></div>';
   el.innerHTML=h;
 }
@@ -2760,7 +2762,11 @@ async function onLogin(user){
     document.getElementById('trial-label').textContent='Suscripción cancelada';
     document.getElementById('trial-days-text').textContent='Acceso hasta '+fmtDD(profile.cancela_el)+' — '+diasCancel+' día'+(diasCancel!==1?'s':'')+' restantes';
     document.getElementById('trial-days-text').style.color='#fde68a';
-    document.getElementById('trial-btn').style.display='none';
+    var trialBtn=document.getElementById('trial-btn');
+    trialBtn.textContent='Renovar plan →';
+    trialBtn.style.display='';
+    trialBtn.style.background='#059669';
+    trialBtn.onclick=reactivarSuscripcion;
   }
 
   // Añadir botones al sidebar footer
@@ -3034,11 +3040,40 @@ async function ejecutarCancelacion(){
     document.getElementById('trial-label').textContent='Suscripción cancelada';
     document.getElementById('trial-days-text').textContent='Acceso hasta '+fmtDD(data.cancela_el)+' — '+diasCancel+' día'+(diasCancel!==1?'s':'')+' restantes';
     document.getElementById('trial-days-text').style.color='#fde68a';
-    document.getElementById('trial-btn').style.display='none';
+    var trialBtn=document.getElementById('trial-btn');
+    trialBtn.textContent='Renovar plan →';
+    trialBtn.style.display='';
+    trialBtn.style.background='#059669';
+    trialBtn.onclick=reactivarSuscripcion;
     showToast('Suscripción cancelada. Acceso hasta '+fmtDD(data.cancela_el),'#d97706');
   }catch(e){
     if(err){err.textContent=e.message;err.style.display='block';}
     btn.disabled=false;btn.textContent='Cancelar suscripción';
+  }
+}
+
+async function reactivarSuscripcion(){
+  var banner=document.getElementById('trial-banner');
+  var btn=document.getElementById('trial-btn');
+  var oldText=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Renovando...';}
+  try{
+    var res=await fetch('/.netlify/functions/reactivate-subscription',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId:currentUser.id})
+    });
+    var data=await res.json();
+    if(!res.ok)throw new Error(data.error||'Error al renovar');
+    // Update local profile
+    userProfile.cancela_el=null;
+    // Hide cancellation banner or reset to normal
+    banner.style.display='none';
+    showToast('¡Plan renovado! Tu suscripción continúa activa 🎉','#059669');
+    navigate(ST.page);
+  }catch(e){
+    showToast('Error: '+e.message,'#dc2626');
+    if(btn){btn.disabled=false;btn.textContent=oldText;}
   }
 }
 
