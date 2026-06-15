@@ -239,6 +239,19 @@ td{padding:9px 10px;vertical-align:middle}
 .notif-title{font-size:13px;font-weight:600;color:#fff;margin-bottom:2px}
 .notif-desc{font-size:11px;color:#64748b;line-height:1.5}
 .notif-empty{padding:40px 20px;text-align:center;color:#475569;font-size:13px}
+/* GLOBAL SEARCH */
+.gs-wrap{padding:8px 12px;flex-shrink:0}
+.gs-input{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:7px 10px 7px 30px;color:#fff;font-size:12px;outline:none;font-family:inherit;box-sizing:border-box;transition:border .15s}
+.gs-input:focus{border-color:#3b82f6}
+.gs-input::placeholder{color:#475569}
+.gs-results{max-height:50vh;overflow-y:auto;padding:4px 0}
+.gs-group{padding:6px 14px 2px;font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.06em}
+.gs-item{padding:6px 14px;display:flex;gap:8px;align-items:center;cursor:pointer;transition:background .1s;font-size:12px;color:#cbd5e1}
+.gs-item:hover{background:rgba(255,255,255,.06)}
+.gs-item-icon{font-size:14px;width:20px;text-align:center;flex-shrink:0}
+.gs-item-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gs-item-sub{font-size:10px;color:#475569}
+.gs-none{padding:20px;text-align:center;color:#475569;font-size:12px}
 </style>
 </head>
 <body>
@@ -420,6 +433,7 @@ td{padding:9px 10px;vertical-align:middle}
       <div style="font-weight:800;font-size:18px;color:#fff;white-space:nowrap;letter-spacing:-0.5px;flex-shrink:0" id="sb-name">Lok<span style="color:#3b82f6">ali</span></div>
     </div>
     <div class="sb-neg" id="sb-neg"></div>
+    <div class="gs-wrap"><div style="position:relative"><span style="position:absolute;left:9px;top:7px;font-size:13px;color:#475569">🔍</span><input type="text" class="gs-input" id="gs-input" placeholder="Buscar..." oninput="globalSearch(this.value)" onfocus="globalSearch(this.value)"></div><div id="gs-results" class="gs-results" style="display:none"></div></div>
     <nav id="nav"></nav>
     <div class="sb-footer">
       <button class="sb-toggle" onclick="toggleSB()" id="sb-toggle">&#9668;</button>
@@ -2881,6 +2895,51 @@ async function ejecutarReseteo(){
     btn.disabled=false;btn.textContent='Borrar todo';
   }
 }
+
+/* GLOBAL SEARCH */
+function globalSearch(q){
+  var el=document.getElementById('gs-results');
+  if(!q||q.length<2){el.style.display='none';return;}
+  q=q.toLowerCase();
+  var results=[];
+  if(!ST.data){el.style.display='none';return;}
+  (ST.data.transacciones||[]).forEach(function(t){
+    if((t.concepto+' '+t.categoria+' '+fmt(t.importe)).toLowerCase().indexOf(q)>-1)
+      results.push({icon:'💰',group:'Finanzas',text:t.concepto+' · '+fmt(t.importe),sub:fmtD(t.fecha)+' · '+t.categoria,page:'finanzas'});
+  });
+  (ST.data.albaranes||[]).forEach(function(a){
+    if((a.id+' '+a.proveedor+' '+(a.concepto||'')+' '+fmt(a.importe)).toLowerCase().indexOf(q)>-1)
+      results.push({icon:'📋',group:'Albaranes',text:a.proveedor+' · '+fmt(a.importe),sub:a.id+' · '+fmtD(a.fecha),page:'albaranes'});
+  });
+  (ST.data.empleados||[]).forEach(function(e){
+    if((e.nombre+' '+(e.puesto||'')+' '+(e.telefono||'')).toLowerCase().indexOf(q)>-1)
+      results.push({icon:'👥',group:'Empleados',text:e.nombre,sub:e.puesto||'',page:'empleados'});
+  });
+  (ST.data.reservas||[]).forEach(function(r){
+    if((r.cliente+' '+(r.tel||'')+' '+(r.servicio||'')).toLowerCase().indexOf(q)>-1)
+      results.push({icon:'📅',group:'Reservas',text:r.cliente+' · '+r.hora,sub:fmtD(r.fecha)+' · '+(r.servicio||''),page:'reservas'});
+  });
+  (ST.data.tareas||[]).forEach(function(t){
+    if((t.titulo+' '+(t.descripcion||'')+' '+(t.notas||'')).toLowerCase().indexOf(q)>-1)
+      results.push({icon:'✅',group:'Tareas',text:t.titulo,sub:t.estado+' · '+(t.fecha?fmtD(t.fecha):''),page:'tareas'});
+  });
+  (ST.data.documentos||[]).forEach(function(d){
+    if((d.numero+' '+(d.receptor&&d.receptor.nombre||'')+' '+(d.emisor&&d.emisor.nombre||'')).toLowerCase().indexOf(q)>-1)
+      results.push({icon:'📄',group:'Documentos',text:d.numero,sub:(d.receptor&&d.receptor.nombre||'')+' · '+fmtD(d.fecha),page:'documentos'});
+  });
+  if(results.length===0){el.innerHTML='<div class="gs-none">Sin resultados</div>';}
+  else{
+    var groups={};results.slice(0,20).forEach(function(r){if(!groups[r.group])groups[r.group]=[];groups[r.group].push(r);});
+    el.innerHTML=Object.entries(groups).map(function(e){
+      return '<div class="gs-group">'+e[0]+'</div>'+e[1].map(function(r){
+        return '<div class="gs-item" onclick="document.getElementById(\'gs-input\').value=\'\';document.getElementById(\'gs-results\').style.display=\'none\';navigate(\''+r.page+'\')">'
+          +'<div class="gs-item-icon">'+r.icon+'</div><div><div class="gs-item-text">'+r.text+'</div><div class="gs-item-sub">'+r.sub+'</div></div></div>';
+      }).join('');
+    }).join('');
+  }
+  el.style.display='block';
+}
+document.addEventListener('click',function(e){if(!e.target.closest('.gs-wrap')){var r=document.getElementById('gs-results');if(r)r.style.display='none';}});
 
 /* NOTIFICATIONS */
 function getNotifications(){
