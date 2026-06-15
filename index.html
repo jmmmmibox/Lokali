@@ -1188,7 +1188,7 @@ function pgAlbaranes(el){
     +'<button class="pill'+(albF==='vencida'?' active':'')+'" onclick="setAlbF(\'vencida\')">Vencidos</button>'
     +'</div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
-    +'<input type="text" class="fi" placeholder="Buscar por proveedor, nº, importe..." style="flex:1;min-width:180px;font-size:12px" value="'+(q||'')+'" oninput="window._albSearch=this.value;navigate(\'albaranes\')">'
+    +'<input type="text" class="fi" placeholder="Buscar por proveedor, nº, importe..." style="flex:1;min-width:180px;font-size:12px" value="'+(q||'')+'" id="alb-search-inp" oninput="window._albSearch=this.value;clearTimeout(window._albST);window._albST=setTimeout(function(){navigate(\'albaranes\');setTimeout(function(){var i=document.getElementById(\'alb-search-inp\');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}},50);},300)">'
     +'<input type="date" class="fi" style="width:130px;font-size:12px" value="'+albFd+'" onchange="window._albFd=this.value;navigate(\'albaranes\')" title="Desde">'
     +'<input type="date" class="fi" style="width:130px;font-size:12px" value="'+albFh+'" onchange="window._albFh=this.value;navigate(\'albaranes\')" title="Hasta">'
     +(q||albFd||albFh?'<button class="btn btn-ghost btn-sm" onclick="window._albSearch=\'\';window._albFd=\'\';window._albFh=\'\';navigate(\'albaranes\')" style="font-size:11px;color:var(--textd)">✕ Limpiar</button>':'')
