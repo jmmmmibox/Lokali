@@ -320,10 +320,22 @@ td{padding:9px 10px;vertical-align:middle}
 <div id="expired-screen" style="display:none;position:fixed;inset:0;background:#0f172a;z-index:9997;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:24px">
   <div style="font-size:48px;margin-bottom:16px">🔒</div>
   <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:8px">Tu periodo de prueba ha terminado</div>
-  <div style="font-size:14px;color:#64748b;margin-bottom:8px;max-width:380px">Activa tu suscripción para seguir usando Lokali. Tus datos están guardados y seguros.</div>
-  <div style="font-size:24px;font-weight:800;color:#3b82f6;margin-bottom:4px">20€/mes</div>
-  <div style="font-size:12px;color:#22c55e;margin-bottom:28px">o 200€/año — 2 meses gratis</div>
-  <div style="background:#1e293b;border:1px solid #334155;border-radius:16px;padding:20px;max-width:340px;margin-bottom:24px;text-align:left">
+  <div style="font-size:14px;color:#64748b;margin-bottom:24px;max-width:380px">Activa tu suscripción para seguir usando Lokali. Tus datos están guardados y seguros.</div>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-bottom:24px;max-width:480px">
+    <div style="background:#1e293b;border:2px solid #334155;border-radius:16px;padding:24px;flex:1;min-width:180px;text-align:center;cursor:pointer;transition:all .2s" onclick="this.style.borderColor='#3b82f6'" id="plan-monthly-card">
+      <div style="font-size:13px;color:#64748b;font-weight:600;margin-bottom:8px">MENSUAL</div>
+      <div style="font-size:32px;font-weight:800;color:#fff">20€<span style="font-size:14px;font-weight:400;color:#64748b">/mes</span></div>
+      <div style="margin-top:14px"><button id="btn-checkout" onclick="goToCheckout('monthly')" style="width:100%;background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Activar →</button></div>
+    </div>
+    <div style="background:#1e293b;border:2px solid #059669;border-radius:16px;padding:24px;flex:1;min-width:180px;text-align:center;position:relative">
+      <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;font-size:10px;font-weight:700;padding:3px 14px;border-radius:20px;white-space:nowrap">AHORRA 40€</div>
+      <div style="font-size:13px;color:#64748b;font-weight:600;margin-bottom:8px">ANUAL</div>
+      <div style="font-size:32px;font-weight:800;color:#fff">200€<span style="font-size:14px;font-weight:400;color:#64748b">/año</span></div>
+      <div style="font-size:11px;color:#22c55e;margin-top:4px">2 meses gratis</div>
+      <div style="margin-top:10px"><button id="btn-checkout-annual" onclick="goToCheckout('annual')" style="width:100%;background:#059669;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Activar →</button></div>
+    </div>
+  </div>
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px 20px;max-width:340px;margin-bottom:20px;text-align:left">
     <div style="font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;margin-bottom:10px">Incluye todo</div>
     <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:#e2e8f0">
       <div>✓ Hasta 10 negocios</div>
@@ -332,10 +344,7 @@ td{padding:9px 10px;vertical-align:middle}
       <div>✓ Soporte incluido</div>
     </div>
   </div>
-  <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
-    <button id="btn-checkout" onclick="goToCheckout()" style="background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s">Activar por 20€/mes →</button>
-    <button onclick="doLogout()" style="background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:10px;padding:14px 20px;font-size:14px;cursor:pointer;font-family:inherit">Cerrar sesión</button>
-  </div>
+  <button onclick="doLogout()" style="background:transparent;color:#64748b;border:none;font-size:13px;cursor:pointer;font-family:inherit;text-decoration:underline">Cerrar sesión</button>
   <div id="checkout-error" style="color:#f87171;font-size:12px;margin-top:12px;display:none"></div>
 </div>
 
@@ -367,7 +376,7 @@ td{padding:9px 10px;vertical-align:middle}
   <div id="trial-banner" style="display:none" class="trial-banner">
     <span id="trial-label" class="trial-text"></span>
     <span id="trial-days-text" class="trial-days"></span>
-    <button id="trial-btn" onclick="goToCheckout()" style="background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Activar plan →</button>
+    <button id="trial-btn" onclick="goToCheckout('monthly')" style="background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Activar plan →</button>
   </div>
 <div class="ov" id="ov" onclick="closeSB()"></div>
 <div id="app">
@@ -3194,23 +3203,23 @@ async function reactivarSuscripcion(){
   }
 }
 
-async function goToCheckout(){
-  var btn=document.getElementById('btn-checkout');
-  var err=document.getElementById('checkout-error');
-  btn.disabled=true;btn.textContent='Redirigiendo...';
-  err.style.display='none';
+async function goToCheckout(priceType){
+  priceType=priceType||'monthly';
+  var btn=document.getElementById('btn-checkout')||(priceType==='annual'?document.getElementById('btn-checkout-annual'):null);
+  if(btn){btn.disabled=true;btn.textContent='Redirigiendo...';}
   try{
     var res=await fetch('/.netlify/functions/create-checkout',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({userId:currentUser.id,email:currentUser.email})
+      body:JSON.stringify({userId:currentUser.id,email:currentUser.email,priceType:priceType})
     });
     var data=await res.json();
     if(data.url){window.location.href=data.url;}
     else throw new Error(data.error||'Error al crear sesión de pago');
   }catch(e){
-    err.textContent=e.message;err.style.display='block';
-    btn.disabled=false;btn.textContent='Activar por 20€/mes →';
+    var err=document.getElementById('checkout-error');
+    if(err){err.textContent=e.message;err.style.display='block';}
+    if(btn){btn.disabled=false;btn.textContent=priceType==='annual'?'200€/año →':'20€/mes →';}
   }
 }
 
