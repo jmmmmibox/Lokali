@@ -533,6 +533,14 @@ function startOfWeek(s){var d=new Date(s+'T12:00:00');d.setDate(d.getDate()-((d.
 
 function makeSeed(tipo, year) {
   return {
+    transacciones:[],
+    albaranes:[],
+    tareas:[],
+    empleados:[], turnos:[], reservas:[], cajas:[], documentos:[],
+  };
+}
+function makeDemoSeed(tipo, year) {
+  return {
     transacciones:[
       {id:uid(),tipo:'ingreso',fecha:year+'-01-15',concepto:'Ventas tarde',   categoria:'Tarde',     importe:843.5,pago:'Efectivo'},
       {id:uid(),tipo:'gasto',  fecha:year+'-01-15',concepto:'Proveedor',      categoria:'Proveedores',importe:300, pago:'Efectivo'},
@@ -553,7 +561,14 @@ function makeSeed(tipo, year) {
       {id:uid(),titulo:'Actualizar carta',      estado:'en-progreso',prioridad:'media',fecha:year+'-05-25',asignado:''},
       {id:uid(),titulo:'Llamar a proveedor A',  estado:'completada', prioridad:'baja', fecha:year+'-05-10',asignado:''},
     ],
-    empleados:[], turnos:[], reservas:[], cajas:[], documentos:[],
+    empleados:[
+      {id:uid(),nombre:'Maria Garcia',puesto:'Camarera',salario:1200,telefono:'600111222'},
+      {id:uid(),nombre:'Carlos Lopez',puesto:'Cocinero',salario:1400,telefono:'600333444'},
+    ],
+    turnos:[], reservas:[
+      {id:uid(),fecha:year+'-06-15',hora:'14:00',cliente:'Juan Perez',tel:'600555666',servicio:'Mesa terraza',personas:4,notas:'Cumpleaños',estado:'confirmada'},
+      {id:uid(),fecha:year+'-06-16',hora:'21:00',cliente:'Ana Martinez',tel:'600777888',servicio:'Salon privado',personas:8,notas:'',estado:'pendiente'},
+    ], cajas:[], documentos:[],
   };
 }
 
@@ -587,10 +602,13 @@ async function init(){
   // Load negocios from Supabase
   var negocios=await sbGetNegocios();
   if(!negocios||negocios.length===0){
-    // Create default negocio
-    var defNeg={id:'neg_'+currentUser.id.slice(0,8),nombre:'Mi Negocio',tipo:'hosteleria',emoji:'☕',color:'#2563eb'};
+    // Create demo business for new users
+    var defNeg={id:'neg_'+currentUser.id.slice(0,8),nombre:'Negocio de prueba',tipo:'hosteleria',emoji:'🧪',color:'#8b5cf6'};
     await sbSaveNegocio(defNeg);
     negocios=[defNeg];
+    // Save demo data
+    var demoData=makeDemoSeed(defNeg.tipo,new Date().getFullYear());
+    await sbSaveData(defNeg.id,new Date().getFullYear(),demoData);
   }
   ST.negocios=negocios;
   ST.plan='premium';
@@ -2569,7 +2587,10 @@ function pgBackup(el){
     +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input type="file" id="bk-f" accept=".json" style="font-size:13px;color:var(--textm)"><button class="btn btn-danger" onclick="impBackup()">📥 Restaurar</button></div>'
     +'<p id="bk-msg" style="font-size:12px;margin-top:10px;display:none"></p></div>'
     +'<div class="card"><div class="st">ANOS DISPONIBLES</div>'
-    +'<div style="display:flex;flex-wrap:wrap;gap:10px">'+ST.meta.years.map(function(y){var d=ST.data||{transacciones:[]};return '<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 16px;text-align:center"><div style="font-weight:700;font-size:18px;color:var(--accent)">'+y+'</div><div style="font-size:11px;color:var(--textd);margin-top:2px">'+d.transacciones.length+' transacciones</div></div>';}).join('')+'</div></div>';
+    +'<div style="display:flex;flex-wrap:wrap;gap:10px">'+ST.meta.years.map(function(y){var d=ST.data||{transacciones:[]};return '<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 16px;text-align:center"><div style="font-weight:700;font-size:18px;color:var(--accent)">'+y+'</div><div style="font-size:11px;color:var(--textd);margin-top:2px">'+d.transacciones.length+' transacciones</div></div>';}).join('')+'</div></div>'
+    +'<div class="card" style="border:1px dashed #dc2626"><div class="st" style="color:#dc2626">ZONA PELIGROSA</div>'
+    +'<p style="font-size:13px;color:var(--textm);margin-bottom:14px">Elimina todos los datos de <strong>'+ST.negocio.nombre+'</strong> y empieza de cero. Esta accion no se puede deshacer.</p>'
+    +'<button class="btn btn-danger" onclick="resetearDatosStep1()">🗑 Resetear datos del negocio</button></div>';
 }
 function expBackup(){
   var backup={negocio:ST.negocio.nombre,negocioId:ST.negocio.id,fecha:new Date().toISOString(),version:'lokali_2',meta:ST.meta,cfg:ST.cfg,datos:{}};
@@ -2610,6 +2631,72 @@ function expXLSX(){
   });
   XLSX.writeFile(wb,ST.negocio.nombre+'_Completo_'+hoy()+'.xlsx');
   showToast('Excel exportado','#059669');
+}
+
+function resetearDatosStep1(){
+  openModal('Resetear datos',
+    '<div style="display:flex;flex-direction:column;gap:16px;text-align:center">'
+    +'<div style="font-size:40px">⚠️</div>'
+    +'<div style="font-size:15px;font-weight:700;color:#dc2626">¿Seguro que quieres borrar todos los datos?</div>'
+    +'<div style="font-size:13px;color:var(--textm);line-height:1.7">Se eliminaran permanentemente todos los datos de <strong style="color:var(--text)">'+ST.negocio.nombre+'</strong>:</div>'
+    +'<div style="background:var(--bg);border-radius:10px;padding:14px;text-align:left">'
+    +'<div style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--textm)">'
+    +'<div style="display:flex;gap:8px"><span style="color:#dc2626;font-weight:700">✗</span> Todas las transacciones e ingresos</div>'
+    +'<div style="display:flex;gap:8px"><span style="color:#dc2626;font-weight:700">✗</span> Albaranes y pagos a proveedores</div>'
+    +'<div style="display:flex;gap:8px"><span style="color:#dc2626;font-weight:700">✗</span> Empleados y turnos registrados</div>'
+    +'<div style="display:flex;gap:8px"><span style="color:#dc2626;font-weight:700">✗</span> Reservas, tareas y documentos</div>'
+    +'<div style="display:flex;gap:8px"><span style="color:#dc2626;font-weight:700">✗</span> Cierres de caja y todo el historial</div>'
+    +'</div></div>'
+    +'<p style="font-size:12px;color:var(--textd)">Te recomendamos descargar un backup antes de continuar.</p>'
+    +'<div style="display:flex;gap:10px;justify-content:center">'
+    +'<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-secondary" onclick="expBackup();showToast(\'Backup descargado\',\'#059669\')" style="color:#059669">💾 Descargar backup</button>'
+    +'<button style="background:#450a0a;border:none;color:#fca5a5;border-radius:10px;padding:11px 18px;font-size:13px;cursor:pointer;font-family:inherit" onclick="resetearDatosStep2()">Continuar</button>'
+    +'</div></div>');
+}
+
+function resetearDatosStep2(){
+  closeModal();
+  setTimeout(function(){
+    openModal('Confirmar reseteo',
+      '<div style="display:flex;flex-direction:column;gap:16px;text-align:center">'
+      +'<div style="font-size:40px">🗑️</div>'
+      +'<div style="font-size:15px;font-weight:700;color:#dc2626">Esta accion es irreversible</div>'
+      +'<div style="font-size:13px;color:var(--textm);line-height:1.7">Escribe <strong style="color:var(--text)">RESETEAR</strong> para confirmar que deseas borrar todos los datos de <strong style="color:var(--text)">'+ST.negocio.nombre+'</strong>.</div>'
+      +'<input type="text" id="reset-confirm" class="fi" placeholder="Escribe RESETEAR" style="text-align:center;font-size:14px;letter-spacing:2px">'
+      +'<div id="reset-err" style="color:#f87171;font-size:12px;display:none"></div>'
+      +'<div style="display:flex;gap:10px;justify-content:center">'
+      +'<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>'
+      +'<button id="btn-reset-final" style="background:#7f1d1d;border:none;color:#fca5a5;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit" onclick="ejecutarReseteo()">Borrar todo</button>'
+      +'</div></div>');
+    setTimeout(function(){var el=document.getElementById('reset-confirm');if(el)el.focus();},80);
+  },200);
+}
+
+async function ejecutarReseteo(){
+  var inp=document.getElementById('reset-confirm');
+  var err=document.getElementById('reset-err');
+  if(!inp||inp.value.trim()!=='RESETEAR'){
+    if(err){err.textContent='Escribe RESETEAR para confirmar';err.style.display='block';}
+    if(inp)inp.style.borderColor='#dc2626';
+    return;
+  }
+  var btn=document.getElementById('btn-reset-final');
+  btn.disabled=true;btn.textContent='Borrando...';
+  try{
+    var cleanData=makeSeed(ST.negocio.tipo,ST.year);
+    await sbSaveData(ST.negocio.id,ST.year,cleanData);
+    ST.data=cleanData;
+    ST.meta={years:[new Date().getFullYear()]};
+    ST.year=new Date().getFullYear();
+    await saveMeta();
+    closeModal();
+    buildYearSel();navigate('dashboard');
+    showToast('Datos reseteados. '+ST.negocio.nombre+' esta limpio.','#059669');
+  }catch(e){
+    if(err){err.textContent='Error: '+e.message;err.style.display='block';}
+    btn.disabled=false;btn.textContent='Borrar todo';
+  }
 }
 
 /* SUPABASE + AUTH */
