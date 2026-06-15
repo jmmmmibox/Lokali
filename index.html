@@ -2411,8 +2411,19 @@ async function savePin(btn){
   if(newVal&&newVal!==conf){document.getElementById('pin-confirm').style.borderColor='#dc2626';showToast('Los PINs no coinciden','#dc2626');return;}
   if(newVal){ST.pins[id]=newVal;showToast('PIN guardado','#059669');}
   else{delete ST.pins[id];showToast('PIN eliminado','#d97706');}
-  await saveCfg();
+  await savePinsToAll();
   closeModal();navigate('negocio');
+}
+
+async function savePinsToAll(){
+  for(var i=0;i<ST.negocios.length;i++){
+    var nid=ST.negocios[i].id;
+    var cfg=await sbGetConfig(nid);
+    if(!cfg)cfg=JSON.parse(JSON.stringify(CFG_POR_TIPO[ST.negocios[i].tipo]||CFG_POR_TIPO.generico));
+    cfg._pins=ST.pins;
+    await sbSaveConfig(nid,cfg);
+  }
+  ST.cfg._pins=ST.pins;
 }
 
 function switchNegBtn(btn){
@@ -2542,6 +2553,7 @@ async function doDelNeg(id){
   await sbDeleteNegocio(id);
   if(ST.pins)delete ST.pins[id];
   ST.negocios=ST.negocios.filter(function(n){return n.id!==id;});
+  if(ST.negocios.length>0)await savePinsToAll();
   if(ST.negocio.id===id){
     await loadNegocio(ST.negocios[0]);
     buildYearSel();buildSidebar();navigate('dashboard');
