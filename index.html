@@ -3348,15 +3348,25 @@ document.addEventListener('DOMContentLoaded',async function(){
     }
   }
   // Check if this is a password recovery redirect
-  if(window.location.hash.includes('type=recovery')){
+  var fullUrl=window.location.href;
+  if(fullUrl.includes('type=recovery')||fullUrl.includes('type%3Drecovery')){
     isResettingPassword=true;
     document.getElementById('auth-screen').style.display='none';
-    return; // Let onAuthStateChange handle it
+    setTimeout(async function(){
+      var {data:{session}}=await sb.auth.getSession();
+      if(session){
+        showResetPassForm();
+      } else {
+        document.getElementById('auth-screen').style.display='block';
+        showToast('El enlace ha expirado. Solicita uno nuevo.','#dc2626');
+      }
+    },1000);
+    return;
   }
   // Normal flow
   document.getElementById('auth-screen').style.display='block';
   var {data:{session}}=await sb.auth.getSession();
-  if(session&&session.user){
+  if(session&&session.user&&!isResettingPassword){
     await onLogin(session.user);
   }
   sb.auth.onAuthStateChange(async function(event,session){
