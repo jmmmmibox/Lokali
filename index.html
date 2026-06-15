@@ -2279,7 +2279,7 @@ function pgAnalytics(el){
   window._anD={txF:txF,ing:ing,gas:gas,benef:benef,iCats:iCats,gCats:gCats,ingEf:ingEf,ingTj:ingTj,ingTr:ingTr,gasEf:gasEf,gasTj:gasTj,gasTr:gasTr};
 
   el.innerHTML='<div class="ph"><div><div class="pt">Analytics</div><div class="ps">'+ST.negocio.nombre+' - '+year+'</div></div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-secondary btn-sm" onclick="anXLS()">↓ Excel</button><button class="btn btn-secondary btn-sm" onclick="anPDF()">↓ PDF</button></div></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-secondary btn-sm" onclick="anXLS()">↓ Excel</button><button class="btn btn-secondary btn-sm" onclick="anPDF()">↓ PDF</button><button class="btn btn-primary btn-sm" onclick="openInformeFiscal()">📋 Informe fiscal</button></div></div>'
     +'<div class="card" style="margin-bottom:16px"><div class="st">FILTROS</div>'
     +'<div class="fgrid" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:10px">'
     +'<div class="fg"><label class="fl">Desde</label><input type="date" id="an-d" class="fi" value="'+anFd+'" onchange="anFil()"></div>'
@@ -2342,6 +2342,82 @@ function anPDF(){
   var w=window.open('','_blank');
   if(w){w.document.write(html);w.document.close();}
   else showToast('Permite ventanas emergentes','#dc2626');
+}
+function openInformeFiscal(){
+  var y=ST.year;
+  openModal('Informe fiscal',
+    '<div style="display:flex;flex-direction:column;gap:14px">'
+    +'<p style="font-size:13px;color:var(--textm)">Selecciona el periodo para el informe:</p>'
+    +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">'
+    +'<button class="btn btn-secondary" onclick="generarInformeFiscal(\'Q1\',\''+y+'-01-01\',\''+y+'-03-31\')">T1 — Ene-Mar '+y+'</button>'
+    +'<button class="btn btn-secondary" onclick="generarInformeFiscal(\'Q2\',\''+y+'-04-01\',\''+y+'-06-30\')">T2 — Abr-Jun '+y+'</button>'
+    +'<button class="btn btn-secondary" onclick="generarInformeFiscal(\'Q3\',\''+y+'-07-01\',\''+y+'-09-30\')">T3 — Jul-Sep '+y+'</button>'
+    +'<button class="btn btn-secondary" onclick="generarInformeFiscal(\'Q4\',\''+y+'-10-01\',\''+y+'-12-31\')">T4 — Oct-Dic '+y+'</button>'
+    +'</div>'
+    +'<button class="btn btn-primary" onclick="generarInformeFiscal(\'Anual\',\''+y+'-01-01\',\''+y+'-12-31\')">Informe Anual '+y+'</button>'
+    +'<div style="display:flex;justify-content:flex-end"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button></div></div>',420);
+}
+function generarInformeFiscal(periodo,fd,fh){
+  closeModal();
+  var tx=ST.data.transacciones.filter(function(t){return t.fecha>=fd&&t.fecha<=fh;});
+  var ingresos=tx.filter(function(t){return t.tipo==='ingreso';});
+  var gastos=tx.filter(function(t){return t.tipo==='gasto';});
+  var totalIng=sum(ingresos,function(t){return t.importe;});
+  var totalGas=sum(gastos,function(t){return t.importe;});
+  var beneficio=totalIng-totalGas;
+  // IVA calculations (21%, 10%, 4%)
+  var ivaRep21=totalIng*0.21/1.21, ivaRep10=0, ivaRep4=0;
+  var baseIng21=totalIng/1.21;
+  var ivaSop21=totalGas*0.21/1.21;
+  var baseGas21=totalGas/1.21;
+  var ivaLiquidar=ivaRep21-ivaSop21;
+  // Categorias
+  var ingCats={};ingresos.forEach(function(t){ingCats[t.categoria]=(ingCats[t.categoria]||0)+t.importe;});
+  var gasCats={};gastos.forEach(function(t){gasCats[t.categoria]=(gasCats[t.categoria]||0)+t.importe;});
+  var ingCatRows=Object.entries(ingCats).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<tr><td>'+e[0]+'</td><td style="text-align:right;color:#059669;font-weight:600">'+fmt(e[1])+'</td></tr>';}).join('');
+  var gasCatRows=Object.entries(gasCats).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<tr><td>'+e[0]+'</td><td style="text-align:right;color:#dc2626;font-weight:600">'+fmt(e[1])+'</td></tr>';}).join('');
+  // Pago
+  var ingEf=sum(ingresos.filter(function(t){return t.pago==='Efectivo';}),function(t){return t.importe;});
+  var ingTj=sum(ingresos.filter(function(t){return t.pago==='Tarjeta';}),function(t){return t.importe;});
+  var ingTr=sum(ingresos.filter(function(t){return t.pago==='Transferencia';}),function(t){return t.importe;});
+  var gasEf=sum(gastos.filter(function(t){return t.pago==='Efectivo';}),function(t){return t.importe;});
+  var gasTj=sum(gastos.filter(function(t){return t.pago==='Tarjeta';}),function(t){return t.importe;});
+  var gasTr=sum(gastos.filter(function(t){return t.pago==='Transferencia';}),function(t){return t.importe;});
+  var ac=ST.negocio.color||'#2563eb';
+  var css='*{margin:0;padding:0;box-sizing:border-box}body{font-family:sans-serif;max-width:900px;margin:32px auto;color:#1e293b;font-size:13px;padding:20px}.no-print{background:'+ac+';color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;margin-bottom:20px;font-family:inherit}@media print{.no-print{display:none}}.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:3px solid '+ac+'}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}.kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;text-align:center}.kv{font-size:20px;font-weight:800}.kl{font-size:10px;color:#64748b;text-transform:uppercase;margin-top:4px}h2{font-size:12px;font-weight:700;text-transform:uppercase;color:'+ac+';letter-spacing:.06em;margin:24px 0 10px;padding-bottom:6px;border-bottom:2px solid #e2e8f0}.iva-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:20px;margin-bottom:20px}.iva-neg{background:#fef2f2;border-color:#fecaca}.iva-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #e2e8f0}.iva-total{display:flex;justify-content:space-between;padding:10px 0;font-size:15px;font-weight:800;border-top:2px solid #059669;margin-top:6px}table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;padding:8px;background:#f1f5f9;font-size:10px;font-weight:600;color:#64748b}td{padding:7px 8px;border-bottom:1px solid #f1f5f9}.cols2{display:grid;grid-template-columns:1fr 1fr;gap:20px}.footer{margin-top:36px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center}';
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>'+css+'</style></head><body>'
+    +'<button class="no-print" onclick="window.print()">Imprimir / Guardar PDF</button>'
+    +'<div class="header"><div><div style="font-size:22px;font-weight:800;color:'+ac+'">'+ST.negocio.emoji+' '+ST.negocio.nombre+'</div><div style="font-size:13px;color:#64748b;margin-top:4px">Informe Fiscal — '+periodo+' '+ST.year+'</div></div>'
+    +'<div style="text-align:right"><div style="font-size:12px;color:#64748b">Periodo: '+fmtD(fd)+' – '+fmtD(fh)+'</div><div style="font-size:11px;color:#94a3b8;margin-top:2px">Generado: '+fmtD(hoy())+'</div></div></div>'
+    +'<div class="kpis"><div class="kpi"><div class="kv" style="color:#059669">'+fmt(totalIng)+'</div><div class="kl">Ingresos</div></div><div class="kpi"><div class="kv" style="color:#dc2626">'+fmt(totalGas)+'</div><div class="kl">Gastos</div></div><div class="kpi"><div class="kv" style="color:'+(beneficio>=0?'#059669':'#dc2626')+'">'+fmt(beneficio)+'</div><div class="kl">Beneficio</div></div><div class="kpi"><div class="kv" style="color:'+(ivaLiquidar>=0?'#dc2626':'#059669')+'">'+fmt(Math.abs(ivaLiquidar))+'</div><div class="kl">IVA a '+(ivaLiquidar>=0?'liquidar':'compensar')+'</div></div></div>'
+    +'<h2>Calculo de IVA</h2>'
+    +'<div class="iva-box'+(ivaLiquidar<0?' iva-neg':'')+'">'
+    +'<div style="font-size:14px;font-weight:700;margin-bottom:12px;color:#059669">IVA Repercutido (ventas)</div>'
+    +'<div class="iva-row"><span>Base imponible (21%)</span><span>'+fmt(baseIng21)+'</span></div>'
+    +'<div class="iva-row"><span>IVA repercutido (21%)</span><strong style="color:#059669">'+fmt(ivaRep21)+'</strong></div>'
+    +'<div style="height:16px"></div>'
+    +'<div style="font-size:14px;font-weight:700;margin-bottom:12px;color:#dc2626">IVA Soportado (compras/gastos)</div>'
+    +'<div class="iva-row"><span>Base imponible (21%)</span><span>'+fmt(baseGas21)+'</span></div>'
+    +'<div class="iva-row"><span>IVA soportado (21%)</span><strong style="color:#dc2626">'+fmt(ivaSop21)+'</strong></div>'
+    +'<div class="iva-total"><span>Resultado IVA</span><span style="color:'+(ivaLiquidar>=0?'#dc2626':'#059669')+'">'+fmt(ivaLiquidar)+' ('+(ivaLiquidar>=0?'a ingresar':'a compensar')+')</span></div>'
+    +'</div>'
+    +'<h2>Desglose por metodo de pago</h2>'
+    +'<table><thead><tr><th>Metodo</th><th style="text-align:right">Ingresos</th><th style="text-align:right">Gastos</th><th style="text-align:right">Neto</th></tr></thead><tbody>'
+    +'<tr><td>Efectivo</td><td style="text-align:right;color:#059669">'+fmt(ingEf)+'</td><td style="text-align:right;color:#dc2626">'+fmt(gasEf)+'</td><td style="text-align:right;font-weight:700">'+fmt(ingEf-gasEf)+'</td></tr>'
+    +'<tr><td>Tarjeta</td><td style="text-align:right;color:#059669">'+fmt(ingTj)+'</td><td style="text-align:right;color:#dc2626">'+fmt(gasTj)+'</td><td style="text-align:right;font-weight:700">'+fmt(ingTj-gasTj)+'</td></tr>'
+    +'<tr><td>Transferencia</td><td style="text-align:right;color:#059669">'+fmt(ingTr)+'</td><td style="text-align:right;color:#dc2626">'+fmt(gasTr)+'</td><td style="text-align:right;font-weight:700">'+fmt(ingTr-gasTr)+'</td></tr>'
+    +'<tr style="background:#f8fafc"><td style="font-weight:700">TOTAL</td><td style="text-align:right;color:#059669;font-weight:700">'+fmt(totalIng)+'</td><td style="text-align:right;color:#dc2626;font-weight:700">'+fmt(totalGas)+'</td><td style="text-align:right;font-weight:800">'+fmt(beneficio)+'</td></tr>'
+    +'</tbody></table>'
+    +'<div class="cols2"><div><h2>Ingresos por categoria</h2><table><thead><tr><th>Categoria</th><th style="text-align:right">Total</th></tr></thead><tbody>'+(ingCatRows||'<tr><td colspan="2" style="text-align:center;color:#94a3b8">Sin ingresos</td></tr>')+'</tbody></table></div>'
+    +'<div><h2>Gastos por categoria</h2><table><thead><tr><th>Categoria</th><th style="text-align:right">Total</th></tr></thead><tbody>'+(gasCatRows||'<tr><td colspan="2" style="text-align:center;color:#94a3b8">Sin gastos</td></tr>')+'</tbody></table></div></div>'
+    +'<h2>Detalle de transacciones ('+tx.length+')</h2><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Categoria</th><th>Concepto</th><th>Pago</th><th style="text-align:right">Importe</th></tr></thead><tbody>'
+    +tx.sort(function(a,b){return a.fecha.localeCompare(b.fecha);}).map(function(t){return '<tr><td>'+fmtD(t.fecha)+'</td><td>'+(t.tipo==='ingreso'?'Ingreso':'Gasto')+'</td><td>'+t.categoria+'</td><td>'+t.concepto+'</td><td>'+t.pago+'</td><td style="text-align:right;font-weight:600;color:'+(t.tipo==='ingreso'?'#059669':'#dc2626')+'">'+(t.tipo==='ingreso'?'+':'-')+fmt(t.importe)+'</td></tr>';}).join('')
+    +'</tbody></table>'
+    +'<div class="footer">'+ST.negocio.nombre+' · Informe fiscal '+periodo+' '+ST.year+' · Generado con Lokali · '+fmtD(hoy())+'</div>'
+    +'<'+'script>window.onload=function(){setTimeout(function(){window.print();},600);}<'+'/script>'
+    +'</body></html>';
+  var w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();}else showToast('Permite ventanas emergentes','#dc2626');
 }
 /* MI NEGOCIO */
 function pgNegocio(el){
