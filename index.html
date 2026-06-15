@@ -226,6 +226,19 @@ td{padding:9px 10px;vertical-align:middle}
 .ob-btn-primary:hover{background:#2563eb}
 .ob-btn-secondary{background:#0f172a;color:#94a3b8;border:1px solid #334155}
 .ob-btn-skip{background:none;border:none;color:#475569;font-size:12px;cursor:pointer;font-family:inherit;margin-top:12px}
+/* NOTIFICATIONS */
+.notif-bell{position:relative;background:none;border:1px solid var(--border2);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:16px;line-height:1}
+.notif-badge{position:absolute;top:-4px;right:-4px;background:#dc2626;color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.notif-panel{position:fixed;top:0;right:0;width:360px;max-width:90vw;height:100vh;background:var(--sidebar);border-left:1px solid rgba(255,255,255,.1);z-index:9990;overflow-y:auto;transform:translateX(100%);transition:transform .25s;display:flex;flex-direction:column}
+.notif-panel.open{transform:translateX(0)}
+.notif-header{padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.notif-item{padding:12px 18px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;gap:10px;align-items:flex-start;cursor:pointer;transition:background .15s}
+.notif-item:hover{background:rgba(255,255,255,.04)}
+.notif-icon{font-size:20px;flex-shrink:0;width:28px;text-align:center;margin-top:2px}
+.notif-text{flex:1;min-width:0}
+.notif-title{font-size:13px;font-weight:600;color:#fff;margin-bottom:2px}
+.notif-desc{font-size:11px;color:#64748b;line-height:1.5}
+.notif-empty{padding:40px 20px;text-align:center;color:#475569;font-size:13px}
 </style>
 </head>
 <body>
@@ -420,12 +433,22 @@ td{padding:9px 10px;vertical-align:middle}
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="yr-sel" id="yr-sel"></div>
+        <button class="notif-bell" id="notif-bell" onclick="toggleNotifPanel()">🔔<span class="notif-badge" id="notif-badge" style="display:none">0</span></button>
         <span id="sv-ind" style="font-size:11px;color:var(--textd);display:none">Guardando...</span>
       </div>
     </div>
     <div id="content"></div>
   </div>
 </div>
+<!-- NOTIFICATION PANEL -->
+<div class="notif-panel" id="notif-panel">
+  <div class="notif-header">
+    <span style="font-size:14px;font-weight:700;color:#fff">🔔 Notificaciones</span>
+    <button onclick="toggleNotifPanel()" style="background:none;border:none;color:#64748b;font-size:18px;cursor:pointer">✕</button>
+  </div>
+  <div id="notif-list"></div>
+</div>
+<div id="notif-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9989" onclick="toggleNotifPanel()"></div>
 <div class="mo" id="modal" style="display:none" onclick="closeModalOut(event)">
   <div class="mb"><div class="mh"><span class="mt" id="modal-title"></span><button class="mc" onclick="closeModal()">&#215;</button></div><div class="mbody" id="modal-body"></div></div>
 </div>
@@ -774,6 +797,7 @@ function navigate(page){
     ajustes:pgAjustes,backup:pgBackup
   };
   if(pages[page])pages[page](el);
+  updateNotifBadge();
 }
 
 /* UI HELPERS */
@@ -2836,6 +2860,84 @@ async function ejecutarReseteo(){
   }catch(e){
     if(err){err.textContent='Error: '+e.message;err.style.display='block';}
     btn.disabled=false;btn.textContent='Borrar todo';
+  }
+}
+
+/* NOTIFICATIONS */
+function getNotifications(){
+  var notifs=[];
+  var today=hoy();
+  if(!ST.data)return notifs;
+  // Albaranes vencidos
+  (ST.data.albaranes||[]).forEach(function(a){
+    if((a.estado==='pendiente'||a.estado==='parcial')&&a.fechaPago&&a.fechaPago<today){
+      notifs.push({icon:'🔴',title:'Albarán vencido',desc:a.proveedor+' · '+fmt(a.importe)+' · Venció '+fmtD(a.fechaPago),page:'albaranes'});
+    }
+  });
+  // Albaranes próximos a vencer (3 días)
+  (ST.data.albaranes||[]).forEach(function(a){
+    if((a.estado==='pendiente'||a.estado==='parcial')&&a.fechaPago){
+      var dias=Math.ceil((new Date(a.fechaPago+'T23:59:59')-new Date())/(1000*60*60*24));
+      if(dias>=0&&dias<=3){
+        notifs.push({icon:'🟡',title:'Albarán por vencer',desc:a.proveedor+' · '+fmt(a.importe)+' · Vence en '+dias+' día'+(dias!==1?'s':''),page:'albaranes'});
+      }
+    }
+  });
+  // Tareas vencidas
+  (ST.data.tareas||[]).forEach(function(t){
+    if(t.estado==='pendiente'&&t.fecha&&t.fecha<today){
+      notifs.push({icon:'🔴',title:'Tarea atrasada',desc:t.titulo+' · Venció '+fmtD(t.fecha),page:'tareas'});
+    }
+  });
+  // Tareas de hoy
+  (ST.data.tareas||[]).forEach(function(t){
+    if((t.estado==='pendiente'||t.estado==='en-progreso')&&t.fecha===today){
+      notifs.push({icon:'📌',title:'Tarea para hoy',desc:t.titulo,page:'tareas'});
+    }
+  });
+  // Reservas de hoy
+  var resHoy=(ST.data.reservas||[]).filter(function(r){return r.fecha===today&&(r.estado==='pendiente'||r.estado==='confirmada');});
+  if(resHoy.length>0){
+    notifs.push({icon:'📅',title:resHoy.length+' reserva'+(resHoy.length>1?'s':'')+' hoy',desc:resHoy.map(function(r){return r.hora+' '+r.cliente+' ('+r.personas+'p)';}).join(' · '),page:'reservas'});
+  }
+  // Caja sin abrir
+  var cajaHoy=(ST.data.cajas||[]).filter(function(c){return c.fecha===today;});
+  if(cajaHoy.length===0){
+    notifs.push({icon:'🧮',title:'Caja no abierta',desc:'No has abierto ningún turno de caja hoy.',page:'caja'});
+  }
+  return notifs;
+}
+
+function updateNotifBadge(){
+  var n=getNotifications().length;
+  var badge=document.getElementById('notif-badge');
+  if(badge){
+    if(n>0){badge.textContent=n;badge.style.display='flex';}
+    else badge.style.display='none';
+  }
+}
+
+function toggleNotifPanel(){
+  var panel=document.getElementById('notif-panel');
+  var ov=document.getElementById('notif-overlay');
+  var isOpen=panel.classList.contains('open');
+  if(isOpen){
+    panel.classList.remove('open');
+    ov.style.display='none';
+  } else {
+    var notifs=getNotifications();
+    var list=document.getElementById('notif-list');
+    if(notifs.length===0){
+      list.innerHTML='<div class="notif-empty"><div style="font-size:32px;margin-bottom:10px">✅</div>Todo en orden por hoy</div>';
+    } else {
+      list.innerHTML=notifs.map(function(n){
+        return '<div class="notif-item" onclick="toggleNotifPanel();navigate(\''+n.page+'\')">'
+          +'<div class="notif-icon">'+n.icon+'</div>'
+          +'<div class="notif-text"><div class="notif-title">'+n.title+'</div><div class="notif-desc">'+n.desc+'</div></div></div>';
+      }).join('');
+    }
+    panel.classList.add('open');
+    ov.style.display='block';
   }
 }
 
