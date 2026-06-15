@@ -12,18 +12,22 @@ exports.handler = async (event) => {
   };
 
   try {
-    const { userId, email } = JSON.parse(event.body);
+    const { userId, email, priceType } = JSON.parse(event.body);
     const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+
+    const priceId = priceType === 'annual'
+      ? process.env.STRIPE_PRICE_ID_ANNUAL
+      : process.env.STRIPE_PRICE_ID;
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'subscription',
       customer_email: email,
       line_items: [{
-        price: process.env.STRIPE_PRICE_ID,
+        price: priceId,
         quantity: 1,
       }],
-      metadata: { userId },
+      metadata: { userId, priceType: priceType || 'monthly' },
       success_url: process.env.SITE_URL + '/?payment=success',
       cancel_url: process.env.SITE_URL + '/?payment=cancelled',
     });
