@@ -1136,10 +1136,21 @@ function pgAlbaranes(el){
   var alb=ST.data.albaranes;
   var eC={pendiente:'amber',parcial:'amber',pagada:'green',vencida:'red'};
   var eL={pendiente:'Pendiente',parcial:'Pendiente (parcial)',pagada:'Pagada',vencida:'Vencida'};
+  var q=(window._albSearch||'').toLowerCase();
+  var albFd=window._albFd||'';
+  var albFh=window._albFh||'';
   var fil=alb.filter(function(a){
-    if(albF==='todos')return true;
-    if(albF==='pendiente')return a.estado==='pendiente'||a.estado==='parcial';
-    return a.estado===albF;
+    if(albF!=='todos'){
+      if(albF==='pendiente'&&a.estado!=='pendiente'&&a.estado!=='parcial')return false;
+      if(albF!=='pendiente'&&a.estado!==albF)return false;
+    }
+    if(q){
+      var txt=(a.id+' '+a.proveedor+' '+(a.concepto||'')+' '+fmt(a.importe)).toLowerCase();
+      if(txt.indexOf(q)===-1)return false;
+    }
+    if(albFd&&a.fecha<albFd)return false;
+    if(albFh&&a.fecha>albFh)return false;
+    return true;
   });
   var pT=sum(alb.filter(function(a){return a.estado!=='pagada';}),function(a){return (a.importe||0)-sum(a.pagos||[],function(p){return p.importe;});});
   el.innerHTML='<div class="ph"><div><div class="pt">Albaranes y Pagos</div><div class="ps">Pagos parciales y control de deuda</div></div><button class="btn btn-primary" onclick="openNuevoAlb()">+ Nuevo alb.</button></div>'
@@ -1149,11 +1160,19 @@ function pgAlbaranes(el){
     +kpi('Con pagos parciales',alb.filter(function(a){return a.estado==='parcial';}).length,'🔄','#2563eb','dentro de pendientes')
     +kpi('Vencidos',alb.filter(function(a){return a.estado==='vencida';}).length,'⚠️','#dc2626','')
     +'</div>'
-    +'<div class="card" style="padding:0"><div style="padding:12px 16px;border-bottom:1px solid var(--border)"><div class="pills" style="margin-bottom:0">'
+    +'<div class="card" style="padding:0"><div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:10px">'
+    +'<div class="pills" style="margin-bottom:0">'
     +'<button class="pill'+(albF==='todos'?' active':'')+'" onclick="setAlbF(\'todos\')">Todos</button>'
     +'<button class="pill'+(albF==='pendiente'?' active':'')+'" onclick="setAlbF(\'pendiente\')">Pendientes</button>'
     +'<button class="pill'+(albF==='pagada'?' active':'')+'" onclick="setAlbF(\'pagada\')">Pagados</button>'
     +'<button class="pill'+(albF==='vencida'?' active':'')+'" onclick="setAlbF(\'vencida\')">Vencidos</button>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+    +'<input type="text" class="fi" placeholder="Buscar por proveedor, nº, importe..." style="flex:1;min-width:180px;font-size:12px" value="'+(q||'')+'" oninput="window._albSearch=this.value;navigate(\'albaranes\')">'
+    +'<input type="date" class="fi" style="width:130px;font-size:12px" value="'+albFd+'" onchange="window._albFd=this.value;navigate(\'albaranes\')" title="Desde">'
+    +'<input type="date" class="fi" style="width:130px;font-size:12px" value="'+albFh+'" onchange="window._albFh=this.value;navigate(\'albaranes\')" title="Hasta">'
+    +(q||albFd||albFh?'<button class="btn btn-ghost btn-sm" onclick="window._albSearch=\'\';window._albFd=\'\';window._albFh=\'\';navigate(\'albaranes\')" style="font-size:11px;color:var(--textd)">✕ Limpiar</button>':'')
+    +'<span style="font-size:11px;color:var(--textd);margin-left:auto">'+fil.length+' resultado'+(fil.length!==1?'s':'')+'</span>'
     +'</div></div>'
     +'<div class="tw"><table><thead><tr><th>N.</th><th>Fecha</th><th>Pago Est.</th><th>Proveedor</th><th>Total</th><th>Pagado</th><th>Pendiente</th><th>Estado</th></tr></thead><tbody>'
     +(fil.length===0?'<tr><td colspan="8" class="tde">Sin albaranes</td></tr>':'')
