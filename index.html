@@ -2821,6 +2821,7 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 let currentUser=null;
 let userProfile=null;
+let isResettingPassword=false;
 
 /* AUTH HELPERS */
 function switchAuthTab(tab){
@@ -3346,6 +3347,12 @@ document.addEventListener('DOMContentLoaded',async function(){
       return;
     }
   }
+  // Check if this is a password recovery redirect
+  if(window.location.hash.includes('type=recovery')){
+    isResettingPassword=true;
+    document.getElementById('auth-screen').style.display='none';
+    return; // Let onAuthStateChange handle it
+  }
   // Normal flow
   document.getElementById('auth-screen').style.display='block';
   var {data:{session}}=await sb.auth.getSession();
@@ -3354,9 +3361,10 @@ document.addEventListener('DOMContentLoaded',async function(){
   }
   sb.auth.onAuthStateChange(async function(event,session){
     if(event==='PASSWORD_RECOVERY'&&session){
+      isResettingPassword=true;
       showResetPassForm();
     }
-    if(event==='SIGNED_IN'&&session&&!currentUser){
+    if(event==='SIGNED_IN'&&session&&!currentUser&&!isResettingPassword){
       await onLogin(session.user);
     }
   });
@@ -3392,6 +3400,7 @@ async function guardarResetPass(){
   try{
     var {error}=await sb.auth.updateUser({password:newP});
     if(error)throw error;
+    isResettingPassword=false;
     var overlay=document.getElementById('reset-overlay');
     if(overlay)overlay.remove();
     showToast('Contraseña actualizada correctamente','#059669');
