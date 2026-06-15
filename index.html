@@ -527,6 +527,7 @@ let ST = {
   plan:     'estandar',
   secOcultas: [],
   pins:     {},
+  inactivityMin: 0,
 };
 
 /* HELPERS */
@@ -592,9 +593,9 @@ function saveData(){
   },600);
 }
 async function saveCfg(){
-  // Store secOcultas and pins inside config
   ST.cfg._secOcultas=ST.secOcultas;
   ST.cfg._pins=ST.pins;
+  ST.cfg._inactivityMin=ST.inactivityMin;
   await sbSaveConfig(ST.negocio.id, ST.cfg);
 }
 async function saveMeta(){
@@ -642,6 +643,7 @@ async function loadNegocio(neg){
   ST.meta=ST.cfg._meta||{years:[new Date().getFullYear()]};
   ST.secOcultas=ST.cfg._secOcultas||[];
   ST.pins=ST.cfg._pins||{};
+  ST.inactivityMin=ST.cfg._inactivityMin||0;
   if(!ST.meta.years)ST.meta.years=[new Date().getFullYear()];
   if(!ST.meta.years.includes(ST.year))ST.year=ST.meta.years[ST.meta.years.length-1];
 
@@ -2563,7 +2565,27 @@ function pgAjustes(el){
         +'<div style="display:flex;gap:8px"><input type="text" id="new-cgi-'+ci+'" class="fi" placeholder="Nuevo item..." style="flex:1;font-size:12px" onkeydown="if(event.key===\'Enter\')addCGI('+ci+')"><button class="btn btn-primary btn-sm" onclick="addCGI('+ci+')">+</button></div></div>';
     }).join('')
     +'<div class="card" style="border-style:dashed"><div style="display:flex;gap:8px"><input type="text" id="new-cg" class="fi" placeholder="Nueva categoria de gasto..." style="flex:1" onkeydown="if(event.key===\'Enter\')addCG()"><button class="btn btn-primary" onclick="addCG()">Anadir</button></div></div>'
-    +'</div></div>';
+    +'</div>'
+    +'<div class="card"><div class="st">MI CUENTA</div>'
+    +'<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--border)">'
+    +'<span style="font-size:13px;color:var(--textm);flex:1">Email: <strong style="color:var(--text)">'+(currentUser?currentUser.email:'')+'</strong></span></div>'
+    +'<button class="btn btn-secondary" onclick="openCambiarPass()">🔑 Cambiar contraseña</button>'
+    +'</div></div>'
+    +'<div class="card"><div class="st">SEGURIDAD</div>'
+    +'<p style="font-size:12px;color:var(--textm);margin-bottom:12px">Cierre automatico de sesion tras un periodo de inactividad.</p>'
+    +'<div style="display:flex;align-items:center;gap:10px">'
+    +'<label style="font-size:13px;color:var(--text);font-weight:500">Timeout:</label>'
+    +'<select class="fi" style="width:180px" onchange="setInactivityTimeout(this.value)">'
+    +'<option value="0"'+(ST.inactivityMin===0?' selected':'')+'>Desactivado</option>'
+    +'<option value="5"'+(ST.inactivityMin===5?' selected':'')+'>5 minutos</option>'
+    +'<option value="10"'+(ST.inactivityMin===10?' selected':'')+'>10 minutos</option>'
+    +'<option value="15"'+(ST.inactivityMin===15?' selected':'')+'>15 minutos</option>'
+    +'<option value="30"'+(ST.inactivityMin===30?' selected':'')+'>30 minutos</option>'
+    +'<option value="60"'+(ST.inactivityMin===60?' selected':'')+'>1 hora</option>'
+    +'</select>'
+    +'</div></div>'
+    +'</div>';
 }
 async function toggleSeccion(btn){
   var id=btn.getAttribute('data-sid');
@@ -2706,6 +2728,88 @@ async function ejecutarReseteo(){
     if(err){err.textContent='Error: '+e.message;err.style.display='block';}
     btn.disabled=false;btn.textContent='Borrar todo';
   }
+}
+
+/* CAMBIAR CONTRASENA */
+function openCambiarPass(){
+  openModal('Cambiar contraseña',
+    '<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div class="fg"><label class="fl">Nueva contraseña</label><input type="password" id="cp-new" class="fi" placeholder="Mínimo 6 caracteres"></div>'
+    +'<div class="fg"><label class="fl">Confirmar contraseña</label><input type="password" id="cp-confirm" class="fi" placeholder="Repite la contraseña"></div>'
+    +'<div id="cp-err" style="color:#f87171;font-size:12px;display:none"></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end">'
+    +'<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-primary" onclick="guardarNuevaPass()">Guardar</button></div></div>');
+}
+async function guardarNuevaPass(){
+  var newP=document.getElementById('cp-new').value;
+  var conf=document.getElementById('cp-confirm').value;
+  var err=document.getElementById('cp-err');
+  if(!newP||newP.length<6){err.textContent='La contraseña debe tener al menos 6 caracteres.';err.style.display='block';return;}
+  if(newP!==conf){err.textContent='Las contraseñas no coinciden.';err.style.display='block';return;}
+  try{
+    var {error}=await sb.auth.updateUser({password:newP});
+    if(error)throw error;
+    closeModal();showToast('Contraseña actualizada','#059669');
+  }catch(e){
+    err.textContent=e.message||'Error al cambiar la contraseña.';err.style.display='block';
+  }
+}
+
+/* TIMEOUT INACTIVIDAD */
+var inactivityTimer=null;
+function setInactivityTimeout(min){
+  ST.inactivityMin=parseInt(min)||0;
+  saveCfg();
+  resetInactivityTimer();
+  showToast(ST.inactivityMin>0?'Timeout: '+ST.inactivityMin+' minutos':'Timeout desactivado','#059669');
+}
+function resetInactivityTimer(){
+  clearTimeout(inactivityTimer);
+  if(ST.inactivityMin>0&&currentUser){
+    inactivityTimer=setTimeout(function(){
+      showInactivityLock();
+    },ST.inactivityMin*60*1000);
+  }
+}
+function showInactivityLock(){
+  if(document.getElementById('inactivity-lock'))return;
+  var lock=document.createElement('div');
+  lock.id='inactivity-lock';
+  lock.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.95);z-index:99998;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:24px';
+  lock.innerHTML='<div style="font-size:48px;margin-bottom:16px">🔒</div>'
+    +'<div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px">Sesión bloqueada</div>'
+    +'<div style="font-size:13px;color:#64748b;margin-bottom:24px">Tu sesión se ha bloqueado por inactividad.</div>'
+    +'<div style="max-width:300px;width:100%">'
+    +'<input type="password" id="lock-pass" placeholder="Introduce tu contraseña" style="width:100%;background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px 14px;color:#fff;font-size:14px;outline:none;font-family:inherit;box-sizing:border-box;text-align:center;margin-bottom:12px" onkeydown="if(event.key===\'Enter\')unlockSession()">'
+    +'<div id="lock-err" style="color:#f87171;font-size:12px;margin-bottom:12px;display:none"></div>'
+    +'<button onclick="unlockSession()" style="width:100%;background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">Desbloquear</button>'
+    +'<button onclick="doLogout();var l=document.getElementById(\'inactivity-lock\');if(l)l.remove();" style="background:none;border:none;color:#64748b;font-size:12px;cursor:pointer;font-family:inherit;text-decoration:underline">Cerrar sesión</button>'
+    +'</div>';
+  document.body.appendChild(lock);
+  setTimeout(function(){var el=document.getElementById('lock-pass');if(el)el.focus();},80);
+}
+async function unlockSession(){
+  var pass=document.getElementById('lock-pass').value;
+  var err=document.getElementById('lock-err');
+  if(!pass){err.textContent='Introduce tu contraseña';err.style.display='block';return;}
+  try{
+    var {error}=await sb.auth.signInWithPassword({email:currentUser.email,password:pass});
+    if(error)throw error;
+    var lock=document.getElementById('inactivity-lock');
+    if(lock)lock.remove();
+    resetInactivityTimer();
+    showToast('Sesión desbloqueada','#059669');
+  }catch(e){
+    err.textContent='Contraseña incorrecta';err.style.display='block';
+    document.getElementById('lock-pass').value='';
+  }
+}
+function initInactivityListeners(){
+  ['mousemove','mousedown','keydown','touchstart','scroll'].forEach(function(evt){
+    document.addEventListener(evt,function(){resetInactivityTimer();},{passive:true});
+  });
+  resetInactivityTimer();
 }
 
 /* SUPABASE + AUTH */
@@ -2885,7 +2989,8 @@ async function onLogin(user){
     }
   },300);
 
-  init();
+  await init();
+  initInactivityListeners();
 }
 
 /* SUPERADMIN */
