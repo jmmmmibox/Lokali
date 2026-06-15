@@ -205,6 +205,27 @@ td{padding:9px 10px;vertical-align:middle}
 .ab-premium{background:#1a1a2e;color:#a78bfa}
 #expired-screen{display:none;position:fixed;inset:0;background:#0f172a;z-index:9997;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:24px}
 @media(max-width:768px){.lp-feat-grid{grid-template-columns:1fr 1fr}.lp-plan-grid{grid-template-columns:1fr}.lp-stats{gap:20px}}
+/* ONBOARDING */
+#onboarding{position:fixed;inset:0;background:rgba(15,23,42,.92);z-index:99990;display:flex;align-items:center;justify-content:center;padding:20px}
+.ob-card{background:#1e293b;border:1px solid #334155;border-radius:20px;padding:40px 36px;width:100%;max-width:480px;text-align:center;animation:fadeIn .3s}
+.ob-step{font-size:11px;color:#3b82f6;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:16px}
+.ob-icon{font-size:48px;margin-bottom:16px}
+.ob-title{font-size:20px;font-weight:800;color:#fff;margin-bottom:10px}
+.ob-desc{font-size:14px;color:#94a3b8;line-height:1.8;margin-bottom:24px}
+.ob-tip{background:#0f172a;border:1px solid #334155;border-radius:12px;padding:16px;text-align:left;margin-bottom:24px}
+.ob-tip-row{display:flex;gap:10px;align-items:flex-start;padding:6px 0;font-size:13px;color:#e2e8f0}
+.ob-tip-icon{font-size:18px;flex-shrink:0;width:24px;text-align:center}
+.ob-tip-text{flex:1;line-height:1.5}
+.ob-tip-label{font-weight:700;color:#fff}
+.ob-dots{display:flex;gap:8px;justify-content:center;margin-bottom:20px}
+.ob-dot{width:8px;height:8px;border-radius:50%;background:#334155;transition:all .2s}
+.ob-dot.active{background:#3b82f6;width:24px;border-radius:4px}
+.ob-btns{display:flex;gap:10px;justify-content:center}
+.ob-btn{border:none;border-radius:10px;padding:12px 24px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s}
+.ob-btn-primary{background:#3b82f6;color:#fff}
+.ob-btn-primary:hover{background:#2563eb}
+.ob-btn-secondary{background:#0f172a;color:#94a3b8;border:1px solid #334155}
+.ob-btn-skip{background:none;border:none;color:#475569;font-size:12px;cursor:pointer;font-family:inherit;margin-top:12px}
 </style>
 </head>
 <body>
@@ -2730,6 +2751,117 @@ async function ejecutarReseteo(){
   }
 }
 
+/* ONBOARDING WIZARD */
+var obStep=0;
+var OB_STEPS=[
+  {
+    icon:'👋',
+    title:'¡Bienvenido a Lokali!',
+    desc:'Tu nueva herramienta para gestionar tu negocio de forma sencilla. Olvídate de las hojas de Excel y lleva todo desde un solo sitio.',
+    tips:[
+      {icon:'⏱',label:'Ahorra tiempo',text:'Lo que antes tardabas horas, ahora son minutos.'},
+      {icon:'📱',label:'Desde cualquier sitio',text:'Funciona en el móvil, tablet y ordenador.'},
+      {icon:'☁️',label:'Datos seguros',text:'Todo se guarda en la nube automáticamente.'}
+    ]
+  },
+  {
+    icon:'🧪',
+    title:'Negocio de prueba',
+    desc:'Hemos creado un negocio con datos de ejemplo para que explores la app sin miedo. Puedes tocar todo, es solo para probar.',
+    tips:[
+      {icon:'💰',label:'Finanzas',text:'Verás ingresos y gastos de ejemplo.'},
+      {icon:'📋',label:'Albaranes',text:'Facturas de proveedores con pagos parciales.'},
+      {icon:'✅',label:'Tareas',text:'Algunas tareas pendientes de ejemplo.'},
+      {icon:'📅',label:'Reservas',text:'Reservas ficticias para que veas cómo funciona.'}
+    ]
+  },
+  {
+    icon:'📂',
+    title:'¿Qué puedes hacer?',
+    desc:'Lokali tiene todo lo que necesitas para el día a día de tu negocio:',
+    tips:[
+      {icon:'🧮',label:'Caja diaria',text:'Abre y cierra turnos, cuadra el efectivo.'},
+      {icon:'👥',label:'Empleados',text:'Controla turnos, horas y genera PDFs.'},
+      {icon:'📄',label:'Documentos',text:'Crea facturas, presupuestos y albaranes.'},
+      {icon:'📊',label:'Analytics',text:'Analiza tu negocio con gráficos y filtros.'},
+      {icon:'⚙️',label:'Ajustes',text:'Personaliza categorías y módulos visibles.'}
+    ]
+  },
+  {
+    icon:'🏪',
+    title:'Crea tu negocio real',
+    desc:'Cuando estés listo, ve a "Mi Negocio" (el botón de arriba del menú) y crea tu propio negocio. Empezará completamente vacío para que metas tus datos reales.',
+    tips:[
+      {icon:'1️⃣',label:'Paso 1',text:'Pulsa el nombre del negocio en el menú lateral.'},
+      {icon:'2️⃣',label:'Paso 2',text:'Pulsa "+ Nuevo negocio" y dale nombre.'},
+      {icon:'3️⃣',label:'Paso 3',text:'Empieza a registrar tus ingresos y gastos.'},
+      {icon:'🗑',label:'Después',text:'Puedes eliminar el negocio de prueba cuando quieras.'}
+    ]
+  },
+  {
+    icon:'🚀',
+    title:'¡Todo listo!',
+    desc:'Ya puedes empezar a usar Lokali. Recuerda que tienes 7 días de prueba gratis para probar todo sin compromiso.',
+    tips:[
+      {icon:'💡',label:'Consejo',text:'Empieza registrando la caja del día de hoy.'},
+      {icon:'📱',label:'Acceso rápido',text:'Añade Lokali a la pantalla de inicio de tu móvil.'},
+      {icon:'❓',label:'¿Dudas?',text:'Estamos aquí para ayudarte en lo que necesites.'}
+    ]
+  }
+];
+
+function showOnboarding(){
+  obStep=0;
+  var el=document.createElement('div');
+  el.id='onboarding';
+  el.innerHTML=renderObStep();
+  document.body.appendChild(el);
+}
+
+function renderObStep(){
+  var s=OB_STEPS[obStep];
+  var total=OB_STEPS.length;
+  var isFirst=obStep===0;
+  var isLast=obStep===total-1;
+  
+  return '<div class="ob-card">'
+    +'<div class="ob-step">Paso '+(obStep+1)+' de '+total+'</div>'
+    +'<div class="ob-icon">'+s.icon+'</div>'
+    +'<div class="ob-title">'+s.title+'</div>'
+    +'<div class="ob-desc">'+s.desc+'</div>'
+    +(s.tips?'<div class="ob-tip">'+s.tips.map(function(t){
+      return '<div class="ob-tip-row"><div class="ob-tip-icon">'+t.icon+'</div><div class="ob-tip-text"><span class="ob-tip-label">'+t.label+'</span> — '+t.text+'</div></div>';
+    }).join('')+'</div>':'')
+    +'<div class="ob-dots">'+OB_STEPS.map(function(_,i){return '<div class="ob-dot'+(i===obStep?' active':'')+'"></div>';}).join('')+'</div>'
+    +'<div class="ob-btns">'
+    +(isFirst?'':'<button class="ob-btn ob-btn-secondary" onclick="obPrev()">← Anterior</button>')
+    +(isLast
+      ?'<button class="ob-btn ob-btn-primary" onclick="obFinish()">¡Empezar! →</button>'
+      :'<button class="ob-btn ob-btn-primary" onclick="obNext()">Siguiente →</button>')
+    +'</div>'
+    +(isLast?'':'<button class="ob-btn-skip" onclick="obFinish()">Saltar introducción</button>')
+    +'</div>';
+}
+
+function obNext(){
+  if(obStep<OB_STEPS.length-1){
+    obStep++;
+    document.getElementById('onboarding').innerHTML=renderObStep();
+  }
+}
+function obPrev(){
+  if(obStep>0){
+    obStep--;
+    document.getElementById('onboarding').innerHTML=renderObStep();
+  }
+}
+async function obFinish(){
+  var el=document.getElementById('onboarding');
+  if(el)el.remove();
+  ST.cfg._onboardingDone=true;
+  await saveCfg();
+}
+
 /* CAMBIAR CONTRASENA */
 function openCambiarPass(){
   openModal('Cambiar contraseña',
@@ -2993,6 +3125,10 @@ async function onLogin(user){
 
   await init();
   initInactivityListeners();
+  // Show onboarding for new users
+  if(!ST.cfg._onboardingDone){
+    setTimeout(showOnboarding,500);
+  }
 }
 
 /* SUPERADMIN */
