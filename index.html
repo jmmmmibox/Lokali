@@ -2405,12 +2405,12 @@ async function savePin(btn){
   var newVal=(document.getElementById('pin-new').value||'').trim();
   var conf=(document.getElementById('pin-confirm').value||'').trim();
   if(tienePin&&actEl){
-    if(actEl.value!==pins[id]){actEl.style.borderColor='#dc2626';showToast('PIN actual incorrecto','#dc2626');return;}
+    if(actEl.value!==ST.pins[id]){actEl.style.borderColor='#dc2626';showToast('PIN actual incorrecto','#dc2626');return;}
   }
   if(newVal&&newVal.length!==6){showToast('El PIN debe tener 6 digitos','#dc2626');return;}
   if(newVal&&newVal!==conf){document.getElementById('pin-confirm').style.borderColor='#dc2626';showToast('Los PINs no coinciden','#dc2626');return;}
-  if(newVal){pins[id]=newVal;showToast('PIN guardado','#059669');}
-  else{delete pins[id];showToast('PIN eliminado','#d97706');}
+  if(newVal){ST.pins[id]=newVal;showToast('PIN guardado','#059669');}
+  else{delete ST.pins[id];showToast('PIN eliminado','#d97706');}
   await saveCfg();
   closeModal();navigate('negocio');
 }
