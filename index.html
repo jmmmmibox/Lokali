@@ -886,7 +886,7 @@ function pgDashboard(el){
   var tareasHoy=(ST.data.tareas||[]).filter(function(t){return (t.estado==='pendiente'||t.estado==='en-progreso')&&t.fecha===today;});
   var tareasTodas=tareasUrg.concat(tareasHoy.filter(function(t){return !tareasUrg.some(function(u){return u.id===t.id;});}));
   // Albaranes vencidos
-  var albVenc=(ST.data.albaranes||[]).filter(function(a){return (a.estado==='pendiente'||a.estado==='parcial')&&a.fechaPago&&a.fechaPago<=today;});
+  var albPend=(ST.data.albaranes||[]).filter(function(a){return a.estado==='pendiente'||a.estado==='parcial';});
 
   var showCaja=ST.secOcultas.indexOf('caja')===-1;
   var showCitas=ST.secOcultas.indexOf('clientes')===-1;
@@ -901,11 +901,11 @@ function pgDashboard(el){
     +(showCaja?kpi('Caja',cajaTxt,'🧮',cajaColor,''):'')
     +(showCitas?kpi('Citas hoy',citasHoy.length,'💆','#7c3aed',''):'')
     +(showRes?kpi('Reservas hoy',resHoy.length,'📅','#0891b2',''):'')
-    +(showAlb?kpi('Alb. pendientes',albVenc.length,'⚠️','#d97706',''):'')
+    +(showAlb?kpi('Alb. pendientes',albPend.length,'⚠️','#d97706',''):'')
     +'</div>';
 
   // HOY section
-  var hayHoy=(showCitas&&citasHoy.length>0)||(showRes&&resHoy.length>0)||(showTareas&&tareasTodas.length>0)||(showAlb&&albVenc.length>0);
+  var hayHoy=(showCitas&&citasHoy.length>0)||(showRes&&resHoy.length>0)||(showTareas&&tareasTodas.length>0)||(showAlb&&albPend.length>0);
   if(hayHoy){
     h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:16px">';
     if(showCitas&&citasHoy.length>0){
@@ -930,11 +930,11 @@ function pgDashboard(el){
           return '<div class="ir"><div><strong>'+t.titulo+'</strong><div style="font-size:11px;color:'+(atrasada?'#dc2626':'var(--textd)')+'">'+fmtD(t.fecha)+(atrasada?' · ¡Atrasada!':'')+'</div></div>'+bdg(t.prioridad||'media',t.prioridad==='alta'?'red':t.prioridad==='baja'?'gray':'amber')+'</div>';
         }).join('')+'</div>';
     }
-    if(showAlb&&albVenc.length>0){
-      h+='<div class="card"><div class="st">⚠️ ALBARANES VENCIDOS — '+albVenc.length+'</div>'
-        +albVenc.slice(0,4).map(function(a){
+    if(showAlb&&albPend.length>0){
+      h+='<div class="card"><div class="st">⚠️ ALBARANES PENDIENTES — '+albPend.length+'</div>'
+        +albPend.slice(0,4).map(function(a){
           var pend=(a.importe||0)-sum(a.pagos||[],function(p){return p.importe;});
-          return '<div class="ir"><div><strong>'+a.proveedor+'</strong><div style="font-size:11px;color:#dc2626">'+a.id+' · Venció '+fmtD(a.fechaPago)+'</div></div><strong style="color:#dc2626">'+fmt(pend)+'</strong></div>';
+          return '<div class="ir"><div><strong>'+a.proveedor+'</strong><div style="font-size:11px;color:#dc2626">'+a.id+' · Pago: '+fmtD(a.fechaPago)+'</div></div><strong style="color:#dc2626">'+fmt(pend)+'</strong></div>';
         }).join('')+'</div>';
     }
     h+='</div>';
@@ -3407,7 +3407,7 @@ function getNotifications(){
   // Albaranes vencidos
   (ST.data.albaranes||[]).forEach(function(a){
     if((a.estado==='pendiente'||a.estado==='parcial')&&a.fechaPago&&a.fechaPago<today){
-      notifs.push({icon:'🔴',title:'Albarán vencido',desc:a.proveedor+' · '+fmt(a.importe)+' · Venció '+fmtD(a.fechaPago),page:'albaranes'});
+      notifs.push({icon:'🔴',title:'Albarán vencido',desc:a.proveedor+' · '+fmt(a.importe)+' · Pago: '+fmtD(a.fechaPago),page:'albaranes'});
     }
   });
   // Albaranes próximos a vencer (3 días)
@@ -3422,7 +3422,7 @@ function getNotifications(){
   // Tareas vencidas
   (ST.data.tareas||[]).forEach(function(t){
     if(t.estado==='pendiente'&&t.fecha&&t.fecha<today){
-      notifs.push({icon:'🔴',title:'Tarea atrasada',desc:t.titulo+' · Venció '+fmtD(t.fecha),page:'tareas'});
+      notifs.push({icon:'🔴',title:'Tarea atrasada',desc:t.titulo+' · Pago: '+fmtD(t.fecha),page:'tareas'});
     }
   });
   // Tareas de hoy
