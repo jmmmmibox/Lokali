@@ -2591,6 +2591,115 @@ function pdfHistorialCitas(){
     +'<'+'script>window.onload=function(){setTimeout(function(){window.print();},600);}<'+'/script></body></html>';
   var w=window.open('','_blank');if(w){w.document.write(html);w.document.close();}else showToast('Permite ventanas emergentes','#dc2626');
 }
+
+/* CLIENTES CRUD */
+function openNuevoCliente(){openModal('Nuevo cliente',clienteModal('saveCliente()',null));}
+function editClienteBtn(cid){var cli=ST.data.clientes.find(function(c){return c.id===cid;});if(!cli)return;openModal('Editar cliente',clienteModal('saveClienteEdit(\''+cid+'\')',cli));}
+function clienteModal(saveF,c){
+  return '<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div class="fg"><label class="fl">Nombre *</label><input type="text" id="cl-n" class="fi" value="'+(c?c.nombre.replace(/"/g,'&quot;'):'')+'"></div>'
+    +'<div class="fgrid" style="grid-template-columns:1fr 1fr">'
+    +'<div class="fg"><label class="fl">Teléfono</label><input type="tel" id="cl-t" class="fi" value="'+(c&&c.telefono?c.telefono:'')+'"></div>'
+    +'<div class="fg"><label class="fl">Email</label><input type="email" id="cl-e" class="fi" value="'+(c&&c.email?c.email:'')+'"></div></div>'
+    +'<div class="fg"><label class="fl">Cumpleaños</label><input type="date" id="cl-c" class="fi" value="'+(c&&c.cumpleanos?c.cumpleanos:'')+'"></div>'
+    +'<div class="fg"><label class="fl">Notas</label><textarea id="cl-no" class="fi" rows="2" style="resize:vertical">'+(c&&c.notas?c.notas:'')+'</textarea></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="'+saveF+'">Guardar</button></div></div>';
+}
+function saveCliente(){var n=document.getElementById('cl-n').value.trim();if(!n){showToast('Escribe el nombre','#dc2626');return;}ST.data.clientes.push({id:'cli_'+uid(),nombre:n,telefono:document.getElementById('cl-t').value||'',email:document.getElementById('cl-e').value||'',cumpleanos:document.getElementById('cl-c').value||'',notas:document.getElementById('cl-no').value||'',fechaAlta:hoy()});saveData();closeModal();navigate('clientes');showToast('Cliente creado','#059669');}
+function saveClienteEdit(cid){var n=document.getElementById('cl-n').value.trim();if(!n){showToast('Escribe el nombre','#dc2626');return;}ST.data.clientes=ST.data.clientes.map(function(c){return c.id===cid?Object.assign({},c,{nombre:n,telefono:document.getElementById('cl-t').value||'',email:document.getElementById('cl-e').value||'',cumpleanos:document.getElementById('cl-c').value||'',notas:document.getElementById('cl-no').value||''}):c;});saveData();closeModal();navigate('clientes');showToast('Cliente actualizado','#059669');}
+
+/* CITAS CRUD */
+window._citaTrats=[];
+function openNuevaCita(preCliId){
+  window._citaTrats=[];
+  var cliOpts=ST.data.clientes.map(function(c){return '<option value="'+c.id+'"'+(preCliId===c.id?' selected':'')+'>'+c.nombre+'</option>';}).join('');
+  var proOpts=ST.data.profesionales.map(function(p){return '<option value="'+p.id+'">'+p.nombre+'</option>';}).join('');
+  openModal('Nueva cita',
+    '<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div class="fgrid" style="grid-template-columns:1fr auto"><div class="fg"><label class="fl">Cliente *</label><select id="ci-cli" class="fi"><option value="">Seleccionar...</option>'+cliOpts+'</select></div>'
+    +'<div class="fg"><label class="fl">&nbsp;</label><button class="btn btn-secondary btn-sm" onclick="closeModal();openNuevoCliente()" style="white-space:nowrap">+ Nuevo</button></div></div>'
+    +'<div class="fg"><label class="fl">Profesional</label><select id="ci-pro" class="fi"><option value="">Sin asignar</option>'+proOpts+'</select></div>'
+    +'<div class="fg"><label class="fl">Tratamientos</label><div id="ci-trats-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>'
+    +'<div style="display:flex;gap:6px"><select id="ci-trat-sel" class="fi" style="flex:1"><option value="">Añadir tratamiento...</option>'+ST.data.tratamientos.map(function(t){return '<option value="'+t.id+'">'+t.nombre+' — '+fmt(t.precio)+' ('+t.duracion+'min)</option>';}).join('')+'</select><button class="btn btn-primary btn-sm" onclick="addCitaTrat()">+</button></div></div>'
+    +'<div class="fgrid" style="grid-template-columns:1fr 1fr">'
+    +'<div class="fg"><label class="fl">Fecha *</label><input type="date" id="ci-f" class="fi" value="'+hoy()+'"></div>'
+    +'<div class="fg"><label class="fl">Hora *</label><input type="time" id="ci-h" class="fi" value="10:00"></div></div>'
+    +'<div class="fgrid" style="grid-template-columns:1fr 1fr">'
+    +'<div class="fg"><label class="fl">Descuento €</label><input type="number" id="ci-d" class="fi" value="0" step="0.01"></div>'
+    +'<div class="fg"><label class="fl">Estado</label><select id="ci-e" class="fi"><option value="pendiente">Pendiente</option><option value="confirmada">Confirmada</option></select></div></div>'
+    +'<div id="ci-resumen" style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--textm)">Sin tratamientos</div>'
+    +'<div class="fg"><label class="fl">Observaciones</label><textarea id="ci-ob" class="fi" rows="2" style="resize:vertical"></textarea></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCita()">Guardar</button></div></div>',580);
+}
+function addCitaTrat(){var sel=document.getElementById('ci-trat-sel');var tid=sel.value;if(!tid)return;var t=ST.data.tratamientos.find(function(x){return x.id===tid;});if(!t)return;window._citaTrats.push({nombre:t.nombre,precio:t.precio,duracion:t.duracion});sel.value='';renderCitaTrats();}
+function removeCitaTrat(i){window._citaTrats.splice(i,1);renderCitaTrats();}
+function renderCitaTrats(){
+  var list=document.getElementById('ci-trats-list');var res=document.getElementById('ci-resumen');
+  list.innerHTML=window._citaTrats.map(function(t,i){return '<div style="display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 10px"><span style="flex:1;font-size:12px;font-weight:500">'+t.nombre+'</span><span style="font-size:11px;color:var(--textm)">'+fmt(t.precio)+' · '+t.duracion+'min</span><button onclick="removeCitaTrat('+i+')" style="background:none;border:none;color:var(--textd);cursor:pointer;font-size:14px">×</button></div>';}).join('');
+  var totalP=window._citaTrats.reduce(function(s,t){return s+t.precio;},0);var totalD=window._citaTrats.reduce(function(s,t){return s+t.duracion;},0);
+  res.innerHTML=window._citaTrats.length===0?'Sin tratamientos':'<strong>'+window._citaTrats.length+' tratamiento'+(window._citaTrats.length>1?'s':'')+'</strong> · Precio: <strong>'+fmt(totalP)+'</strong> · Duración: <strong>'+totalD+' min</strong>';
+}
+function saveCita(){
+  var cli=document.getElementById('ci-cli').value;if(!cli){showToast('Selecciona un cliente','#dc2626');return;}
+  if(window._citaTrats.length===0){showToast('Añade al menos un tratamiento','#dc2626');return;}
+  var totalP=window._citaTrats.reduce(function(s,t){return s+t.precio;},0);
+  ST.data.citas.push({id:uid(),clienteId:cli,profesionalId:document.getElementById('ci-pro').value||'',fecha:document.getElementById('ci-f').value,hora:document.getElementById('ci-h').value,tratamientos:window._citaTrats.slice(),precio:totalP,descuento:parseFloat(document.getElementById('ci-d').value)||0,estado:document.getElementById('ci-e').value,observaciones:document.getElementById('ci-ob').value||'',pagado:false});
+  saveData();closeModal();navigate('clientes');showToast('Cita creada','#059669');
+}
+function editCitaBtn(btn){
+  var cid=btn.getAttribute('data-cid');var c=ST.data.citas.find(function(x){return x.id===cid;});if(!c)return;
+  window._citaTrats=citaTrats(c).slice();
+  var cliOpts=ST.data.clientes.map(function(cl){return '<option value="'+cl.id+'"'+(cl.id===c.clienteId?' selected':'')+'>'+cl.nombre+'</option>';}).join('');
+  var proOpts=ST.data.profesionales.map(function(p){return '<option value="'+p.id+'"'+(p.id===c.profesionalId?' selected':'')+'>'+p.nombre+'</option>';}).join('');
+  openModal('Editar cita',
+    '<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div class="fg"><label class="fl">Cliente</label><select id="ci-cli" class="fi">'+cliOpts+'</select></div>'
+    +'<div class="fg"><label class="fl">Profesional</label><select id="ci-pro" class="fi"><option value="">Sin asignar</option>'+proOpts+'</select></div>'
+    +'<div class="fg"><label class="fl">Tratamientos</label><div id="ci-trats-list"></div>'
+    +'<div style="display:flex;gap:6px;margin-top:8px"><select id="ci-trat-sel" class="fi" style="flex:1"><option value="">Añadir tratamiento...</option>'+ST.data.tratamientos.map(function(t){return '<option value="'+t.id+'">'+t.nombre+' — '+fmt(t.precio)+'</option>';}).join('')+'</select><button class="btn btn-primary btn-sm" onclick="addCitaTrat()">+</button></div></div>'
+    +'<div class="fgrid" style="grid-template-columns:1fr 1fr">'
+    +'<div class="fg"><label class="fl">Fecha</label><input type="date" id="ci-f" class="fi" value="'+c.fecha+'"></div>'
+    +'<div class="fg"><label class="fl">Hora</label><input type="time" id="ci-h" class="fi" value="'+c.hora+'"></div></div>'
+    +'<div class="fgrid" style="grid-template-columns:1fr 1fr 1fr">'
+    +'<div class="fg"><label class="fl">Descuento €</label><input type="number" id="ci-d" class="fi" value="'+(c.descuento||0)+'" step="0.01"></div>'
+    +'<div class="fg"><label class="fl">Estado</label><select id="ci-e" class="fi"><option value="pendiente"'+(c.estado==='pendiente'?' selected':'')+'>Pendiente</option><option value="confirmada"'+(c.estado==='confirmada'?' selected':'')+'>Confirmada</option><option value="completada"'+(c.estado==='completada'?' selected':'')+'>Completada</option><option value="cancelada"'+(c.estado==='cancelada'?' selected':'')+'>Cancelada</option><option value="noshow"'+(c.estado==='noshow'?' selected':'')+'>No show</option></select></div>'
+    +'<div class="fg"><label class="fl">Pagado</label><select id="ci-pg" class="fi"><option value="0"'+(!c.pagado?' selected':'')+'>No</option><option value="1"'+(c.pagado?' selected':'')+'>Sí</option></select></div></div>'
+    +'<div id="ci-resumen" style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--textm)"></div>'
+    +'<div class="fg"><label class="fl">Observaciones</label><textarea id="ci-ob" class="fi" rows="2" style="resize:vertical">'+(c.observaciones||'')+'</textarea></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" data-cid="'+cid+'" onclick="saveCitaEdit(this)">Guardar</button></div></div>',580);
+  setTimeout(renderCitaTrats,50);
+}
+function saveCitaEdit(btn){
+  var cid=btn.getAttribute('data-cid');var totalP=window._citaTrats.reduce(function(s,t){return s+t.precio;},0);
+  ST.data.citas=ST.data.citas.map(function(c){if(c.id!==cid)return c;return Object.assign({},c,{clienteId:document.getElementById('ci-cli').value,profesionalId:document.getElementById('ci-pro').value||'',tratamientos:window._citaTrats.slice(),precio:totalP,fecha:document.getElementById('ci-f').value,hora:document.getElementById('ci-h').value,descuento:parseFloat(document.getElementById('ci-d').value)||0,estado:document.getElementById('ci-e').value,observaciones:document.getElementById('ci-ob').value||'',pagado:document.getElementById('ci-pg').value==='1'});});
+  saveData();closeModal();navigate('clientes');showToast('Cita actualizada','#059669');
+}
+function setCitaEstado(btn){var cid=btn.getAttribute('data-cid'),est=btn.getAttribute('data-est');ST.data.citas=ST.data.citas.map(function(c){return c.id===cid?Object.assign({},c,{estado:est}):c;});saveData();navigate('clientes');}
+function delCitaBtn(btn){var cid=btn.getAttribute('data-cid');ST.data.citas=ST.data.citas.filter(function(c){return c.id!==cid;});saveData();navigate('clientes');showToast('Cita eliminada','#d97706');}
+
+/* PROFESIONALES CRUD */
+function openNuevoProfesional(){openModal('Nuevo profesional',profModal('saveProfesional()',null));}
+function editProfBtn(btn){var pid=btn.getAttribute('data-pid');var p=ST.data.profesionales.find(function(x){return x.id===pid;});if(!p)return;openModal('Editar profesional',profModal('saveProfEdit(\''+pid+'\')',p));}
+function profModal(saveF,p){
+  return '<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div class="fg"><label class="fl">Nombre *</label><input type="text" id="pr-n" class="fi" value="'+(p?p.nombre:'')+'"></div>'
+    +'<div class="fgrid" style="grid-template-columns:1fr 1fr">'
+    +'<div class="fg"><label class="fl">Especialidad</label><input type="text" id="pr-e" class="fi" value="'+(p&&p.especialidad?p.especialidad:'')+'"></div>'
+    +'<div class="fg"><label class="fl">Teléfono</label><input type="tel" id="pr-t" class="fi" value="'+(p&&p.telefono?p.telefono:'')+'"></div></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="'+saveF+'">Guardar</button></div></div>';
+}
+function saveProfesional(){var n=document.getElementById('pr-n').value.trim();if(!n){showToast('Escribe el nombre','#dc2626');return;}ST.data.profesionales.push({id:'pro_'+uid(),nombre:n,especialidad:document.getElementById('pr-e').value||'',telefono:document.getElementById('pr-t').value||''});saveData();closeModal();navigate('clientes');showToast('Profesional añadido','#059669');}
+function saveProfEdit(pid){var n=document.getElementById('pr-n').value.trim();if(!n){showToast('Escribe el nombre','#dc2626');return;}ST.data.profesionales=ST.data.profesionales.map(function(p){return p.id===pid?Object.assign({},p,{nombre:n,especialidad:document.getElementById('pr-e').value||'',telefono:document.getElementById('pr-t').value||''}):p;});saveData();closeModal();navigate('clientes');showToast('Profesional actualizado','#059669');}
+function delProfBtn(btn){var pid=btn.getAttribute('data-pid');ST.data.profesionales=ST.data.profesionales.filter(function(p){return p.id!==pid;});saveData();navigate('clientes');showToast('Profesional eliminado','#d97706');}
+
+/* TRATAMIENTOS CRUD */
+function openNuevoTratamiento(){openModal('Nuevo tratamiento',tratModal('saveTratamiento()',null));}
+function editTratBtn(btn){var tid=btn.getAttribute('data-tid');var t=ST.data.tratamientos.find(function(x){return x.id===tid;});if(!t)return;openModal('Editar tratamiento',tratModal('saveTratEdit(\''+tid+'\')',t));}
+function tratModal(saveF,t){return '<div style="display:flex;flex-direction:column;gap:12px"><div class="fg"><label class="fl">Nombre *</label><input type="text" id="tr-n" class="fi" value="'+(t?t.nombre:'')+'"></div><div class="fgrid" style="grid-template-columns:1fr 1fr"><div class="fg"><label class="fl">Precio €</label><input type="number" id="tr-p" class="fi" value="'+(t?t.precio:0)+'" step="0.01"></div><div class="fg"><label class="fl">Duración (min)</label><input type="number" id="tr-d" class="fi" value="'+(t?t.duracion:30)+'"></div></div><div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="'+saveF+'">Guardar</button></div></div>';}
+function saveTratamiento(){var n=document.getElementById('tr-n').value.trim();if(!n){showToast('Escribe el nombre','#dc2626');return;}ST.data.tratamientos.push({id:uid(),nombre:n,precio:parseFloat(document.getElementById('tr-p').value)||0,duracion:parseInt(document.getElementById('tr-d').value)||30});saveData();closeModal();navigate('clientes');showToast('Tratamiento añadido','#059669');}
+function saveTratEdit(tid){var n=document.getElementById('tr-n').value.trim();if(!n){showToast('Escribe el nombre','#dc2626');return;}ST.data.tratamientos=ST.data.tratamientos.map(function(t){return t.id===tid?Object.assign({},t,{nombre:n,precio:parseFloat(document.getElementById('tr-p').value)||0,duracion:parseInt(document.getElementById('tr-d').value)||30}):t;});saveData();closeModal();navigate('clientes');showToast('Tratamiento actualizado','#059669');}
+function delTratBtn(btn){var tid=btn.getAttribute('data-tid');ST.data.tratamientos=ST.data.tratamientos.filter(function(t){return t.id!==tid;});saveData();navigate('clientes');showToast('Tratamiento eliminado','#d97706');}
+
 /* ANALYTICS */
 var anFd='',anFh='',anT='todos',anC='todas',anPago='todos';
 function pgAnalytics(el){
