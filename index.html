@@ -543,6 +543,7 @@ const NAV_ITEMS = [
   {id:'reservas',  label:'Reservas',    icon:'📅'},
   {id:'tareas',    label:'Tareas',      icon:'✅'},
   {id:'documentos',label:'Documentos',  icon:'📄'},
+  {id:'clientes',  label:'Clientes',    icon:'💆'},
   {id:'analytics', label:'Analytics',  icon:'📊'},
   {id:'ajustes',   label:'Ajustes',     icon:'⚙️'},
   {id:'backup',    label:'Backup',      icon:'💾'},
@@ -611,6 +612,7 @@ function makeSeed(tipo, year) {
     albaranes:[],
     tareas:[],
     empleados:[], turnos:[], reservas:[], cajas:[], documentos:[],
+    clientes:[], citas:[], tratamientos:[],
   };
 }
 function makeDemoSeed(tipo, year) {
@@ -643,6 +645,21 @@ function makeDemoSeed(tipo, year) {
       {id:uid(),fecha:year+'-06-15',hora:'14:00',cliente:'Juan Perez',tel:'600555666',servicio:'Mesa terraza',personas:4,notas:'Cumpleaños',estado:'confirmada'},
       {id:uid(),fecha:year+'-06-16',hora:'21:00',cliente:'Ana Martinez',tel:'600777888',servicio:'Salon privado',personas:8,notas:'',estado:'pendiente'},
     ], cajas:[], documentos:[],
+    clientes:[
+      {id:'cli_1',nombre:'Laura Fernandez',telefono:'600111222',email:'laura@email.com',notas:'Alergia al latex',fechaAlta:year+'-01-10',cumpleanos:'1990-05-15'},
+      {id:'cli_2',nombre:'Pedro Sanchez',telefono:'600333444',email:'',notas:'',fechaAlta:year+'-02-20',cumpleanos:''},
+    ],
+    citas:[
+      {id:uid(),clienteId:'cli_1',fecha:year+'-03-10',hora:'10:00',duracion:60,tratamiento:'Corte y color',precio:45,descuento:0,estado:'completada',observaciones:'Quiere mechas la proxima vez',pagado:true},
+      {id:uid(),clienteId:'cli_1',fecha:year+'-04-15',hora:'11:00',duracion:45,tratamiento:'Mechas',precio:65,descuento:5,estado:'completada',observaciones:'',pagado:true},
+      {id:uid(),clienteId:'cli_2',fecha:year+'-05-20',hora:'16:00',duracion:30,tratamiento:'Corte caballero',precio:15,descuento:0,estado:'pendiente',observaciones:'',pagado:false},
+    ],
+    tratamientos:[
+      {id:uid(),nombre:'Corte y color',precio:45,duracion:60},
+      {id:uid(),nombre:'Mechas',precio:65,duracion:45},
+      {id:uid(),nombre:'Corte caballero',precio:15,duracion:30},
+      {id:uid(),nombre:'Manicura',precio:20,duracion:40},
+    ],
   };
 }
 
@@ -719,7 +736,7 @@ async function loadNegocio(neg){
   } else {
     ST.data=data;
     // Ensure all arrays exist
-    var arrays=['transacciones','albaranes','tareas','empleados','turnos','reservas','cajas','documentos'];
+    var arrays=['transacciones','albaranes','tareas','empleados','turnos','reservas','cajas','documentos','clientes','citas','tratamientos'];
     arrays.forEach(function(k){if(!ST.data[k])ST.data[k]=[];});
   }
 }
@@ -813,7 +830,7 @@ function navigate(page){
   var pages={
     dashboard:pgDashboard,finanzas:pgFinanzas,caja:pgCaja,
     albaranes:pgAlbaranes,empleados:pgEmpleados,reservas:pgReservas,
-    tareas:pgTareas,documentos:pgDocumentos,analytics:pgAnalytics,negocio:pgNegocio,
+    tareas:pgTareas,documentos:pgDocumentos,clientes:pgClientes,analytics:pgAnalytics,negocio:pgNegocio,
     ajustes:pgAjustes,backup:pgBackup
   };
   if(pages[page])pages[page](el);
@@ -2311,6 +2328,256 @@ function generarPDFDoc(doc){
   else showToast('Permite ventanas emergentes','#dc2626');
 }
 
+/* CLIENTES & CITAS */
+var cliTab='agenda',cliDetalle=null,cliSearch='';
+function pgClientes(el){
+  if(!ST.data.clientes)ST.data.clientes=[];
+  if(!ST.data.citas)ST.data.citas=[];
+  if(!ST.data.tratamientos)ST.data.tratamientos=[];
+  if(cliDetalle)return pgClienteDetalle(el,cliDetalle);
+  var today=hoy();
+  var citasHoy=ST.data.citas.filter(function(c){return c.fecha===today;}).sort(function(a,b){return a.hora.localeCompare(b.hora);});
+  var totalCli=ST.data.clientes.length;
+  var citasPend=ST.data.citas.filter(function(c){return c.estado==='pendiente'||c.estado==='confirmada';}).length;
+  var ingCitas=sum(ST.data.citas.filter(function(c){return c.estado==='completada'&&c.pagado;}),function(c){return (c.precio||0)-(c.descuento||0);});
+  var h='<div class="ph"><div><div class="pt">Clientes & Citas</div><div class="ps">Gestion de clientes, citas y tratamientos</div></div>'
+    +'<div style="display:flex;gap:8px"><button class="btn btn-primary" onclick="openNuevaCita()">+ Nueva cita</button><button class="btn btn-secondary" onclick="openNuevoCliente()">+ Cliente</button></div></div>'
+    +'<div class="kpi-grid g4" style="margin-bottom:12px">'
+    +kpi('Clientes',totalCli,'👥','#2563eb','')
+    +kpi('Citas hoy',citasHoy.length,'📅','#7c3aed','')
+    +kpi('Citas pendientes',citasPend,'⏳','#d97706','')
+    +kpi('Ingresos citas',fmt(ingCitas),'💰','#059669','completadas')
+    +'</div>'
+    +'<div class="pills" style="margin-bottom:12px">'
+    +'<button class="pill'+(cliTab==='agenda'?' active':'')+'" onclick="cliTab=\'agenda\';navigate(\'clientes\')">Agenda</button>'
+    +'<button class="pill'+(cliTab==='clientes'?' active':'')+'" onclick="cliTab=\'clientes\';navigate(\'clientes\')">Clientes</button>'
+    +'<button class="pill'+(cliTab==='tratamientos'?' active':'')+'" onclick="cliTab=\'tratamientos\';navigate(\'clientes\')">Tratamientos</button>'
+    +'</div>';
+  if(cliTab==='agenda'){
+    var citasSem=ST.data.citas.filter(function(c){return c.fecha>=today&&c.fecha<=addDays(today,6)&&c.estado!=='cancelada';}).sort(function(a,b){return (a.fecha+a.hora).localeCompare(b.fecha+b.hora);});
+    h+='<div class="card" style="padding:0"><div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--textm);text-transform:uppercase">Proximos 7 dias — '+citasSem.length+' citas</div>'
+      +'<div class="tw"><table><thead><tr><th>Fecha</th><th>Hora</th><th>Cliente</th><th>Tratamiento</th><th>Precio</th><th>Estado</th><th></th></tr></thead><tbody>'
+      +(citasSem.length===0?'<tr><td colspan="7" class="tde">Sin citas proximas</td></tr>':'')
+      +citasSem.map(function(c){
+        var cli=ST.data.clientes.find(function(x){return x.id===c.clienteId;});
+        var eC2={pendiente:'amber',confirmada:'blue',completada:'green',cancelada:'red',noshow:'red'};
+        return '<tr><td>'+(c.fecha===today?'<strong style="color:var(--accent)">Hoy</strong>':fmtD(c.fecha))+'</td><td style="font-weight:600">'+c.hora+'</td>'
+          +'<td style="cursor:pointer;color:var(--accent)" onclick="cliDetalle=\''+(cli?cli.id:'')+'\';navigate(\'clientes\')">'+(cli?cli.nombre:'—')+'</td>'
+          +'<td>'+c.tratamiento+'</td><td>'+fmt(c.precio||0)+(c.descuento?'<span style="color:#059669;font-size:11px"> -'+fmt(c.descuento)+'</span>':'')+'</td>'
+          +'<td>'+bdg(c.estado,eC2[c.estado]||'gray')+'</td>'
+          +'<td><div style="display:flex;gap:3px">'
+          +(c.estado==='pendiente'?'<button data-cid="'+c.id+'" data-est="confirmada" onclick="setCitaEstado(this)" style="background:none;border:none;cursor:pointer;font-size:14px" title="Confirmar">✓</button>':'')
+          +(c.estado==='confirmada'?'<button data-cid="'+c.id+'" data-est="completada" onclick="setCitaEstado(this)" style="background:none;border:none;cursor:pointer;font-size:14px" title="Completar">✅</button>':'')
+          +'<button data-cid="'+c.id+'" onclick="editCitaBtn(this)" style="background:none;border:none;cursor:pointer;font-size:13px">✏️</button>'
+          +'<button data-cid="'+c.id+'" onclick="delCitaBtn(this)" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--textd)">×</button>'
+          +'</div></td></tr>';
+      }).join('')+'</tbody></table></div></div>';
+  }
+  if(cliTab==='clientes'){
+    var q=cliSearch.toLowerCase();
+    var clis=ST.data.clientes.filter(function(c){return !q||(c.nombre+' '+(c.telefono||'')+' '+(c.email||'')).toLowerCase().indexOf(q)>-1;});
+    h+='<div class="card" style="margin-bottom:12px"><input type="text" class="fi" placeholder="Buscar cliente por nombre, telefono, email..." value="'+cliSearch+'" id="cli-search-inp" oninput="cliSearch=this.value;clearTimeout(window._cliST);window._cliST=setTimeout(function(){navigate(\'clientes\');setTimeout(function(){var i=document.getElementById(\'cli-search-inp\');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}},50);},300)"></div>'
+      +'<div class="card" style="padding:0"><div style="padding:10px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--textm)">'+clis.length+' CLIENTES</div>'
+      +clis.map(function(c){
+        var numCitas=ST.data.citas.filter(function(x){return x.clienteId===c.id;}).length;
+        var ultCita=ST.data.citas.filter(function(x){return x.clienteId===c.id&&x.estado==='completada';}).sort(function(a,b){return b.fecha.localeCompare(a.fecha);})[0];
+        var totalGast=sum(ST.data.citas.filter(function(x){return x.clienteId===c.id&&x.estado==='completada'&&x.pagado;}),function(x){return (x.precio||0)-(x.descuento||0);});
+        return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s" onclick="cliDetalle=\''+c.id+'\';navigate(\'clientes\')" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'transparent\'">'
+          +'<div style="width:40px;height:40px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;flex-shrink:0">'+c.nombre.charAt(0).toUpperCase()+'</div>'
+          +'<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px">'+c.nombre+'</div>'
+          +'<div style="font-size:11px;color:var(--textd)">'+(c.telefono||'Sin tel.')+' · '+numCitas+' citas · '+fmt(totalGast)+'</div></div>'
+          +'<div style="text-align:right;font-size:11px;color:var(--textd)">'+(ultCita?'Última: '+fmtD(ultCita.fecha):'Sin visitas')+'</div>'
+          +'</div>';
+      }).join('')
+      +(clis.length===0?'<div style="padding:30px;text-align:center;color:var(--textd)">Sin clientes</div>':'')
+      +'</div>';
+  }
+  if(cliTab==='tratamientos'){
+    h+='<div class="card" style="padding:0"><div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;font-weight:700;color:var(--textm)">TRATAMIENTOS / SERVICIOS</span><button class="btn btn-primary btn-sm" onclick="openNuevoTratamiento()">+ Añadir</button></div>'
+      +'<div class="tw"><table><thead><tr><th>Nombre</th><th>Precio</th><th>Duración</th><th></th></tr></thead><tbody>'
+      +(ST.data.tratamientos.length===0?'<tr><td colspan="4" class="tde">Sin tratamientos</td></tr>':'')
+      +ST.data.tratamientos.map(function(t){
+        return '<tr><td style="font-weight:600">'+t.nombre+'</td><td>'+fmt(t.precio)+'</td><td>'+t.duracion+' min</td>'
+          +'<td><div style="display:flex;gap:3px"><button data-tid="'+t.id+'" onclick="editTratBtn(this)" style="background:none;border:none;cursor:pointer;font-size:13px">✏️</button>'
+          +'<button data-tid="'+t.id+'" onclick="delTratBtn(this)" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--textd)">×</button></div></td></tr>';
+      }).join('')+'</tbody></table></div></div>';
+  }
+  el.innerHTML=h;
+}
+
+/* CLIENTE DETALLE */
+function pgClienteDetalle(el,cid){
+  var cli=ST.data.clientes.find(function(c){return c.id===cid;});
+  if(!cli){cliDetalle=null;pgClientes(el);return;}
+  var citas=ST.data.citas.filter(function(c){return c.clienteId===cid;}).sort(function(a,b){return b.fecha.localeCompare(a.fecha);});
+  var completadas=citas.filter(function(c){return c.estado==='completada';});
+  var totalGast=sum(completadas.filter(function(c){return c.pagado;}),function(c){return (c.precio||0)-(c.descuento||0);});
+  var eC2={pendiente:'amber',confirmada:'blue',completada:'green',cancelada:'red',noshow:'red'};
+  el.innerHTML='<div class="ph"><div><button onclick="cliDetalle=null;navigate(\'clientes\')" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--accent);margin-right:8px">← Volver</button></div>'
+    +'<div style="display:flex;gap:8px"><button class="btn btn-primary" onclick="openNuevaCita(\''+cid+'\')">+ Cita</button><button class="btn btn-secondary" onclick="editClienteBtn(\''+cid+'\')">✏️ Editar</button></div></div>'
+    +'<div class="card" style="margin-bottom:16px"><div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">'
+    +'<div style="width:56px;height:56px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:22px;flex-shrink:0">'+cli.nombre.charAt(0).toUpperCase()+'</div>'
+    +'<div style="flex:1;min-width:180px"><div style="font-size:18px;font-weight:800">'+cli.nombre+'</div>'
+    +'<div style="font-size:12px;color:var(--textm);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap">'
+    +(cli.telefono?'<span>📱 <a href="tel:'+cli.telefono+'" style="color:var(--accent)">'+cli.telefono+'</a></span>':'')
+    +(cli.email?'<span>✉ '+cli.email+'</span>':'')
+    +(cli.cumpleanos?'<span>🎂 '+fmtD(cli.cumpleanos)+'</span>':'')
+    +'</div>'
+    +(cli.notas?'<div style="font-size:12px;color:var(--textd);margin-top:6px;font-style:italic">📝 '+cli.notas+'</div>':'')
+    +'</div></div>'
+    +'<div class="kpi-grid g4" style="margin-top:14px">'
+    +kpi('Total citas',citas.length,'📅','#2563eb','')
+    +kpi('Completadas',completadas.length,'✅','#059669','')
+    +kpi('Total gastado',fmt(totalGast),'💰','#7c3aed','')
+    +kpi('Cliente desde',fmtD(cli.fechaAlta),'📆','#64748b','')
+    +'</div></div>'
+    +'<div class="card" style="padding:0"><div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--textm)">HISTORIAL DE CITAS — '+citas.length+'</div>'
+    +'<div class="tw"><table><thead><tr><th>Fecha</th><th>Hora</th><th>Tratamiento</th><th>Precio</th><th>Dto.</th><th>Estado</th><th>Pagado</th><th>Observaciones</th><th></th></tr></thead><tbody>'
+    +(citas.length===0?'<tr><td colspan="9" class="tde">Sin citas</td></tr>':'')
+    +citas.map(function(c){
+      return '<tr><td>'+fmtD(c.fecha)+'</td><td style="font-weight:600">'+c.hora+'</td><td>'+c.tratamiento+'</td>'
+        +'<td>'+fmt(c.precio||0)+'</td><td>'+(c.descuento?fmt(c.descuento):'—')+'</td>'
+        +'<td>'+bdg(c.estado,eC2[c.estado]||'gray')+'</td>'
+        +'<td>'+(c.pagado?'<span style="color:#059669;font-weight:600">✓</span>':'<span style="color:#dc2626">✗</span>')+'</td>'
+        +'<td style="font-size:11px;color:var(--textm);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(c.observaciones||'—')+'</td>'
+        +'<td><div style="display:flex;gap:3px">'
+        +'<button data-cid="'+c.id+'" onclick="editCitaBtn(this)" style="background:none;border:none;cursor:pointer;font-size:13px">✏️</button>'
+        +'<button data-cid="'+c.id+'" onclick="delCitaBtn(this)" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--textd)">×</button>'
+        +'</div></td></tr>';
+    }).join('')+'</tbody></table></div></div>';
+}
+
+/* CLIENTES CRUD */
+function openNuevoCliente(){
+  openModal('Nuevo cliente',clienteModal('saveCliente()',null));
+}
+function editClienteBtn(cid){
+  var cli=ST.data.clientes.find(function(c){return c.id===cid;});if(!cli)return;
+  openModal('Editar cliente',clienteModal('saveClienteEdit(\''+cid+'\')',cli));
+}
+function clienteModal(saveF,c){
+  return '<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div class="fg"><label class="fl">Nombre *</label><input type="text" id="cl-n" class="fi" value="'+(c?c.nombre.replace(/"/g,'&quot;'):'')+'"></div>'
+    +'<div class="fgrid" style="grid-template-columns:1fr 1fr">'
+    +'<div class="fg"><label class="fl">Teléfono</label><input type="tel" id="cl-t" class="fi" value="'+(c&&c.telefono?c.telefono:'')+'"></div>'
+    +'<div class="fg"><label class="fl">Email</label><input type="email" id="cl-e" class="fi" value="'+(c&&c.email?c.email:'')+'"></div></div>'
+    +'<div class="fg"><label class="fl">Fecha cumpleaños</label><input type="date" id="cl-c" class="fi" value="'+(c&&c.cumpleanos?c.cumpleanos:'')+'"></div>'
+    +'<div class="fg"><label class="fl">Notas / Observaciones</label><textarea id="cl-no" class="fi" rows="2" style="resize:vertical">'+(c&&c.notas?c.notas:'')+'</textarea></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="'+saveF+'">Guardar</button></div></div>';
+}
+function saveCliente(){
+  var n=document.getElementById('cl-n').value.trim();if(!n){showToast('Escribe el nombre','#dc2626');return;}
+  ST.data.clientes.push({id:'cli_'+uid(),nombre:n,telefono:document.getElementById('cl-t').value||'',email:document.getElementById('cl-e').value||'',cumpleanos:document.getElementById('cl-c').value||'',notas:document.getElementById('cl-no').value||'',fechaAlta:hoy()});
+  saveData();closeModal();navigate('clientes');showToast('Cliente creado','#059669');
+}
+function saveClienteEdit(cid){
+  var n=document.getElementById('cl-n').value.trim();if(!n){showToast('Escribe el nombre','#dc2626');return;}
+  ST.data.clientes=ST.data.clientes.map(function(c){return c.id===cid?Object.assign({},c,{nombre:n,telefono:document.getElementById('cl-t').value||'',email:document.getElementById('cl-e').value||'',cumpleanos:document.getElementById('cl-c').value||'',notas:document.getElementById('cl-no').value||''}):c;});
+  saveData();closeModal();navigate('clientes');showToast('Cliente actualizado','#059669');
+}
+
+/* CITAS CRUD */
+function openNuevaCita(preCliId){
+  var cliOpts=ST.data.clientes.map(function(c){return '<option value="'+c.id+'"'+(preCliId===c.id?' selected':'')+'>'+c.nombre+'</option>';}).join('');
+  var tratOpts=ST.data.tratamientos.map(function(t){return '<option value="'+t.nombre+'" data-p="'+t.precio+'" data-d="'+t.duracion+'">'+t.nombre+' — '+fmt(t.precio)+'</option>';}).join('');
+  openModal('Nueva cita',
+    '<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div class="fgrid" style="grid-template-columns:1fr auto"><div class="fg"><label class="fl">Cliente *</label><select id="ci-cli" class="fi"><option value="">Seleccionar...</option>'+cliOpts+'</select></div>'
+    +'<div class="fg"><label class="fl">&nbsp;</label><button class="btn btn-secondary btn-sm" onclick="closeModal();openNuevoCliente()" style="white-space:nowrap">+ Nuevo</button></div></div>'
+    +'<div class="fg"><label class="fl">Tratamiento *</label><select id="ci-trat" class="fi" onchange="var o=this.options[this.selectedIndex];document.getElementById(\'ci-p\').value=o.getAttribute(\'data-p\')||0;document.getElementById(\'ci-dur\').value=o.getAttribute(\'data-d\')||30"><option value="">Seleccionar...</option>'+tratOpts+'<option value="_otro">Otro...</option></select></div>'
+    +'<div id="ci-otro-wrap" style="display:none" class="fg"><label class="fl">Nombre tratamiento</label><input type="text" id="ci-otro" class="fi"></div>'
+    +'<div class="fgrid" style="grid-template-columns:1fr 1fr 1fr">'
+    +'<div class="fg"><label class="fl">Fecha *</label><input type="date" id="ci-f" class="fi" value="'+hoy()+'"></div>'
+    +'<div class="fg"><label class="fl">Hora *</label><input type="time" id="ci-h" class="fi" value="10:00"></div>'
+    +'<div class="fg"><label class="fl">Duración (min)</label><input type="number" id="ci-dur" class="fi" value="30"></div></div>'
+    +'<div class="fgrid" style="grid-template-columns:1fr 1fr 1fr">'
+    +'<div class="fg"><label class="fl">Precio €</label><input type="number" id="ci-p" class="fi" value="0" step="0.01"></div>'
+    +'<div class="fg"><label class="fl">Descuento €</label><input type="number" id="ci-d" class="fi" value="0" step="0.01"></div>'
+    +'<div class="fg"><label class="fl">Estado</label><select id="ci-e" class="fi"><option value="pendiente">Pendiente</option><option value="confirmada">Confirmada</option></select></div></div>'
+    +'<div class="fg"><label class="fl">Observaciones</label><textarea id="ci-ob" class="fi" rows="2" style="resize:vertical"></textarea></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveCita()">Guardar</button></div></div>');
+  document.getElementById('ci-trat').addEventListener('change',function(){document.getElementById('ci-otro-wrap').style.display=this.value==='_otro'?'block':'none';});
+}
+function saveCita(){
+  var cli=document.getElementById('ci-cli').value;if(!cli){showToast('Selecciona un cliente','#dc2626');return;}
+  var trat=document.getElementById('ci-trat').value;
+  if(trat==='_otro')trat=document.getElementById('ci-otro').value.trim();
+  if(!trat){showToast('Selecciona un tratamiento','#dc2626');return;}
+  ST.data.citas.push({id:uid(),clienteId:cli,fecha:document.getElementById('ci-f').value,hora:document.getElementById('ci-h').value,duracion:parseInt(document.getElementById('ci-dur').value)||30,tratamiento:trat,precio:parseFloat(document.getElementById('ci-p').value)||0,descuento:parseFloat(document.getElementById('ci-d').value)||0,estado:document.getElementById('ci-e').value,observaciones:document.getElementById('ci-ob').value||'',pagado:false});
+  saveData();closeModal();navigate('clientes');showToast('Cita creada','#059669');
+}
+function editCitaBtn(btn){
+  var cid=btn.getAttribute('data-cid');
+  var c=ST.data.citas.find(function(x){return x.id===cid;});if(!c)return;
+  var cliOpts=ST.data.clientes.map(function(cl){return '<option value="'+cl.id+'"'+(cl.id===c.clienteId?' selected':'')+'>'+cl.nombre+'</option>';}).join('');
+  openModal('Editar cita',
+    '<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div class="fg"><label class="fl">Cliente</label><select id="ci-cli" class="fi">'+cliOpts+'</select></div>'
+    +'<div class="fg"><label class="fl">Tratamiento</label><input type="text" id="ci-trat2" class="fi" value="'+c.tratamiento+'"></div>'
+    +'<div class="fgrid" style="grid-template-columns:1fr 1fr 1fr">'
+    +'<div class="fg"><label class="fl">Fecha</label><input type="date" id="ci-f" class="fi" value="'+c.fecha+'"></div>'
+    +'<div class="fg"><label class="fl">Hora</label><input type="time" id="ci-h" class="fi" value="'+c.hora+'"></div>'
+    +'<div class="fg"><label class="fl">Duración</label><input type="number" id="ci-dur" class="fi" value="'+(c.duracion||30)+'"></div></div>'
+    +'<div class="fgrid" style="grid-template-columns:1fr 1fr 1fr">'
+    +'<div class="fg"><label class="fl">Precio €</label><input type="number" id="ci-p" class="fi" value="'+(c.precio||0)+'" step="0.01"></div>'
+    +'<div class="fg"><label class="fl">Descuento €</label><input type="number" id="ci-d" class="fi" value="'+(c.descuento||0)+'" step="0.01"></div>'
+    +'<div class="fg"><label class="fl">Estado</label><select id="ci-e" class="fi"><option value="pendiente"'+(c.estado==='pendiente'?' selected':'')+'>Pendiente</option><option value="confirmada"'+(c.estado==='confirmada'?' selected':'')+'>Confirmada</option><option value="completada"'+(c.estado==='completada'?' selected':'')+'>Completada</option><option value="cancelada"'+(c.estado==='cancelada'?' selected':'')+'>Cancelada</option><option value="noshow"'+(c.estado==='noshow'?' selected':'')+'>No show</option></select></div></div>'
+    +'<div class="fg"><label class="fl">Observaciones</label><textarea id="ci-ob" class="fi" rows="2" style="resize:vertical">'+(c.observaciones||'')+'</textarea></div>'
+    +'<div class="fgrid" style="grid-template-columns:1fr 1fr"><div class="fg"><label class="fl">Pagado</label><select id="ci-pg" class="fi"><option value="0"'+(!c.pagado?' selected':'')+'>No</option><option value="1"'+(c.pagado?' selected':'')+'>Sí</option></select></div><div></div></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" data-cid="'+cid+'" onclick="saveCitaEdit(this)">Guardar</button></div></div>');
+}
+function saveCitaEdit(btn){
+  var cid=btn.getAttribute('data-cid');
+  ST.data.citas=ST.data.citas.map(function(c){
+    if(c.id!==cid)return c;
+    return Object.assign({},c,{clienteId:document.getElementById('ci-cli').value,tratamiento:document.getElementById('ci-trat2').value,fecha:document.getElementById('ci-f').value,hora:document.getElementById('ci-h').value,duracion:parseInt(document.getElementById('ci-dur').value)||30,precio:parseFloat(document.getElementById('ci-p').value)||0,descuento:parseFloat(document.getElementById('ci-d').value)||0,estado:document.getElementById('ci-e').value,observaciones:document.getElementById('ci-ob').value||'',pagado:document.getElementById('ci-pg').value==='1'});
+  });
+  saveData();closeModal();navigate('clientes');showToast('Cita actualizada','#059669');
+}
+function setCitaEstado(btn){
+  var cid=btn.getAttribute('data-cid'),est=btn.getAttribute('data-est');
+  ST.data.citas=ST.data.citas.map(function(c){return c.id===cid?Object.assign({},c,{estado:est}):c;});
+  saveData();navigate('clientes');
+}
+function delCitaBtn(btn){
+  var cid=btn.getAttribute('data-cid');
+  ST.data.citas=ST.data.citas.filter(function(c){return c.id!==cid;});
+  saveData();navigate('clientes');showToast('Cita eliminada','#d97706');
+}
+
+/* TRATAMIENTOS CRUD */
+function openNuevoTratamiento(){
+  openModal('Nuevo tratamiento',tratModal('saveTratamiento()',null));
+}
+function editTratBtn(btn){
+  var tid=btn.getAttribute('data-tid');
+  var t=ST.data.tratamientos.find(function(x){return x.id===tid;});if(!t)return;
+  openModal('Editar tratamiento',tratModal('saveTratEdit(\''+tid+'\')',t));
+}
+function tratModal(saveF,t){
+  return '<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div class="fg"><label class="fl">Nombre *</label><input type="text" id="tr-n" class="fi" value="'+(t?t.nombre:'')+'"></div>'
+    +'<div class="fgrid" style="grid-template-columns:1fr 1fr">'
+    +'<div class="fg"><label class="fl">Precio €</label><input type="number" id="tr-p" class="fi" value="'+(t?t.precio:0)+'" step="0.01"></div>'
+    +'<div class="fg"><label class="fl">Duración (min)</label><input type="number" id="tr-d" class="fi" value="'+(t?t.duracion:30)+'"></div></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="'+saveF+'">Guardar</button></div></div>';
+}
+function saveTratamiento(){
+  var n=document.getElementById('tr-n').value.trim();if(!n){showToast('Escribe el nombre','#dc2626');return;}
+  ST.data.tratamientos.push({id:uid(),nombre:n,precio:parseFloat(document.getElementById('tr-p').value)||0,duracion:parseInt(document.getElementById('tr-d').value)||30});
+  saveData();closeModal();navigate('clientes');showToast('Tratamiento añadido','#059669');
+}
+function saveTratEdit(tid){
+  var n=document.getElementById('tr-n').value.trim();if(!n){showToast('Escribe el nombre','#dc2626');return;}
+  ST.data.tratamientos=ST.data.tratamientos.map(function(t){return t.id===tid?Object.assign({},t,{nombre:n,precio:parseFloat(document.getElementById('tr-p').value)||0,duracion:parseInt(document.getElementById('tr-d').value)||30}):t;});
+  saveData();closeModal();navigate('clientes');showToast('Tratamiento actualizado','#059669');
+}
+function delTratBtn(btn){
+  var tid=btn.getAttribute('data-tid');
+  ST.data.tratamientos=ST.data.tratamientos.filter(function(t){return t.id!==tid;});
+  saveData();navigate('clientes');showToast('Tratamiento eliminado','#d97706');
+}
+
 /* ANALYTICS */
 var anFd='',anFh='',anT='todos',anC='todas',anPago='todos';
 function pgAnalytics(el){
@@ -2702,8 +2969,8 @@ async function doDelNeg(id){
 
 /* AJUSTES */
 function pgAjustes(el){
-  var TOGGLEABLE=['dashboard','finanzas','caja','albaranes','empleados','reservas','tareas','documentos','analytics'];
-  var LABELS={dashboard:'Dashboard',finanzas:'Finanzas',caja:'Caja Diaria',albaranes:'Albaranes',empleados:'Empleados',reservas:'Reservas',tareas:'Tareas',documentos:'Documentos',analytics:'Analytics'};
+  var TOGGLEABLE=['dashboard','finanzas','caja','albaranes','empleados','reservas','tareas','documentos','clientes','analytics'];
+  var LABELS={dashboard:'Dashboard',finanzas:'Finanzas',caja:'Caja Diaria',albaranes:'Albaranes',empleados:'Empleados',reservas:'Reservas',tareas:'Tareas',documentos:'Documentos',clientes:'Clientes',analytics:'Analytics'};
   el.innerHTML='<div class="ph"><div><div class="pt">Ajustes</div><div class="ps">Configuracion de '+ST.negocio.nombre+'</div></div></div>'
     +'<div style="display:flex;flex-direction:column;gap:12px">'
     +'<div class="card"><div class="st">MODULOS VISIBLES</div>'
@@ -2932,6 +3199,15 @@ function globalSearch(q){
   (ST.data.documentos||[]).forEach(function(d){
     if((d.numero+' '+(d.receptor&&d.receptor.nombre||'')+' '+(d.emisor&&d.emisor.nombre||'')).toLowerCase().indexOf(q)>-1)
       results.push({icon:'📄',group:'Documentos',text:d.numero,sub:(d.receptor&&d.receptor.nombre||'')+' · '+fmtD(d.fecha),page:'documentos'});
+  });
+  (ST.data.clientes||[]).forEach(function(c){
+    if((c.nombre+' '+(c.telefono||'')+' '+(c.email||'')).toLowerCase().indexOf(q)>-1)
+      results.push({icon:'💆',group:'Clientes',text:c.nombre,sub:(c.telefono||'')+' · '+(c.email||''),page:'clientes'});
+  });
+  (ST.data.citas||[]).forEach(function(c){
+    var cli2=(ST.data.clientes||[]).find(function(x){return x.id===c.clienteId;});
+    if((c.tratamiento+' '+(cli2?cli2.nombre:'')).toLowerCase().indexOf(q)>-1)
+      results.push({icon:'📅',group:'Citas',text:c.tratamiento+' · '+(cli2?cli2.nombre:''),sub:fmtD(c.fecha)+' · '+c.hora,page:'clientes'});
   });
   if(results.length===0){el.innerHTML='<div class="gs-none">Sin resultados</div>';}
   else{
