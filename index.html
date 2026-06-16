@@ -867,41 +867,92 @@ function closeModalOut(e){if(e.target===document.getElementById('modal'))closeMo
 function pgDashboard(el){
   var tx=ST.data.transacciones.filter(function(t){return t.fecha&&t.fecha.startsWith(String(ST.year));});
   var ing=sum(tx.filter(function(t){return t.tipo==='ingreso';}),function(t){return t.importe;});
-  var gas=sum(tx.filter(function(t){return t.tipo==='gasto';}),  function(t){return t.importe;});
+  var gas=sum(tx.filter(function(t){return t.tipo==='gasto';}),function(t){return t.importe;});
   var benef=ing-gas;
-  var margin=ing>0?((benef/ing)*100).toFixed(1):0;
   var today=hoy();
   var ingH=sum(ST.data.transacciones.filter(function(t){return t.tipo==='ingreso'&&t.fecha===today;}),function(t){return t.importe;});
-  var gasH=sum(ST.data.transacciones.filter(function(t){return t.tipo==='gasto'&&t.fecha===today;}),  function(t){return t.importe;});
-  var albPend=ST.data.albaranes.filter(function(a){return a.estado==='pendiente'||a.estado==='parcial';});
-  var pendAmt=sum(albPend,function(a){return (a.importe||0)-sum(a.pagos||[],function(p){return p.importe;});});
-  var tPend=ST.data.tareas.filter(function(t){return t.estado==='pendiente';}).length;
+  var gasH=sum(ST.data.transacciones.filter(function(t){return t.tipo==='gasto'&&t.fecha===today;}),function(t){return t.importe;});
+  // Caja hoy
+  var cajaHoy=(ST.data.cajas||[]).filter(function(c){return c.fecha===today;});
+  var cajaAbierta=cajaHoy.some(function(c){return !c.cerrada;});
+  var cajaTxt=cajaHoy.length===0?'Sin abrir':cajaAbierta?'Abierta':'Cerrada ('+cajaHoy.length+' turno'+(cajaHoy.length>1?'s':'')+')';
+  var cajaColor=cajaHoy.length===0?'#dc2626':cajaAbierta?'#059669':'#2563eb';
+  // Citas hoy
+  var citasHoy=(ST.data.citas||[]).filter(function(c){return c.fecha===today&&c.estado!=='cancelada';}).sort(function(a,b){return a.hora.localeCompare(b.hora);});
+  // Reservas hoy
+  var resHoy=(ST.data.reservas||[]).filter(function(r){return r.fecha===today&&(r.estado==='pendiente'||r.estado==='confirmada');}).sort(function(a,b){return (a.hora||'').localeCompare(b.hora||'');});
+  // Tareas urgentes
+  var tareasUrg=(ST.data.tareas||[]).filter(function(t){return t.estado==='pendiente'&&t.fecha&&t.fecha<=today;});
+  var tareasHoy=(ST.data.tareas||[]).filter(function(t){return (t.estado==='pendiente'||t.estado==='en-progreso')&&t.fecha===today;});
+  var tareasTodas=tareasUrg.concat(tareasHoy.filter(function(t){return !tareasUrg.some(function(u){return u.id===t.id;});}));
+  // Albaranes vencidos
+  var albVenc=(ST.data.albaranes||[]).filter(function(a){return (a.estado==='pendiente'||a.estado==='parcial')&&a.fechaPago&&a.fechaPago<=today;});
 
-  el.innerHTML='<div class="ph"><div><div class="pt">'+ST.negocio.emoji+' '+ST.negocio.nombre+'</div><div class="ps">Dashboard - '+ST.year+'</div></div></div>'
+  var h='<div class="ph"><div><div class="pt">'+ST.negocio.emoji+' '+ST.negocio.nombre+'</div><div class="ps">'+fmtD(today)+' — Dashboard</div></div></div>'
+    // KPIs HOY
     +'<div class="kpi-grid g4">'
-    +kpi('Ingresos YTD',fmt(ing),'💰','#059669','Margen '+margin+'%')
-    +kpi('Gastos YTD',fmt(gas),'📉','#dc2626','')
+    +kpi('Ventas hoy',fmt(ingH),'💰','#059669','Gastos: '+fmt(gasH))
+    +kpi('Caja',cajaTxt,'🧮',cajaColor,'')
+    +kpi('Citas hoy',citasHoy.length,'💆','#7c3aed',resHoy.length+' reservas')
+    +kpi('Tareas',tareasTodas.length,'✅','#d97706',tareasUrg.length>0?tareasUrg.length+' atrasadas':'al día')
+    +'</div>';
+
+  // HOY section
+  var hayHoy=citasHoy.length>0||resHoy.length>0||tareasTodas.length>0||albVenc.length>0;
+  if(hayHoy){
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:16px">';
+    // Citas
+    if(citasHoy.length>0){
+      h+='<div class="card"><div class="st">💆 CITAS HOY — '+citasHoy.length+'</div>'
+        +citasHoy.map(function(c){
+          var cli=(ST.data.clientes||[]).find(function(x){return x.id===c.clienteId;});
+          var pro=(ST.data.profesionales||[]).find(function(x){return x.id===c.profesionalId;});
+          var eC2={pendiente:'amber',confirmada:'blue',completada:'green'};
+          return '<div class="ir"><div><strong>'+c.hora+'</strong> '+(cli?cli.nombre:'—')+' <span style="font-size:11px;color:var(--textd)">'+(pro?'· '+pro.nombre:'')+'</span><div style="font-size:11px;color:var(--textd)">'+citaTratsText(c)+' · '+citaDur(c)+'min</div></div>'+bdg(c.estado,eC2[c.estado]||'gray')+'</div>';
+        }).join('')+'</div>';
+    }
+    // Reservas
+    if(resHoy.length>0){
+      h+='<div class="card"><div class="st">📅 RESERVAS HOY — '+resHoy.length+'</div>'
+        +resHoy.map(function(r){
+          return '<div class="ir"><div><strong>'+(r.hora||'--:--')+'</strong> '+r.cliente+' <span style="font-size:11px;color:var(--textd)">'+r.personas+'p'+(r.servicio?' · '+r.servicio:'')+'</span></div>'+bdg(r.estado,r.estado==='confirmada'?'blue':'amber')+'</div>';
+        }).join('')+'</div>';
+    }
+    // Tareas
+    if(tareasTodas.length>0){
+      h+='<div class="card"><div class="st">✅ TAREAS URGENTES — '+tareasTodas.length+'</div>'
+        +tareasTodas.slice(0,5).map(function(t){
+          var atrasada=t.fecha<today;
+          return '<div class="ir"><div><strong>'+t.titulo+'</strong><div style="font-size:11px;color:'+(atrasada?'#dc2626':'var(--textd)')+'">'+fmtD(t.fecha)+(atrasada?' · ¡Atrasada!':'')+'</div></div>'+bdg(t.prioridad||'media',t.prioridad==='alta'?'red':t.prioridad==='baja'?'gray':'amber')+'</div>';
+        }).join('')+'</div>';
+    }
+    // Albaranes vencidos
+    if(albVenc.length>0){
+      h+='<div class="card"><div class="st">⚠️ ALBARANES VENCIDOS — '+albVenc.length+'</div>'
+        +albVenc.slice(0,4).map(function(a){
+          var pend=(a.importe||0)-sum(a.pagos||[],function(p){return p.importe;});
+          return '<div class="ir"><div><strong>'+a.proveedor+'</strong><div style="font-size:11px;color:#dc2626">'+a.id+' · Venció '+fmtD(a.fechaPago)+'</div></div><strong style="color:#dc2626">'+fmt(pend)+'</strong></div>';
+        }).join('')+'</div>';
+    }
+    h+='</div>';
+  }
+
+  // Resumen anual + gráficos
+  h+='<div class="kpi-grid g3" style="margin-bottom:16px">'
+    +kpi('Ingresos '+ST.year,fmt(ing),'💰','#059669','')
+    +kpi('Gastos '+ST.year,fmt(gas),'📉','#dc2626','')
     +kpi('Beneficio',fmt(benef),'📊',benef>=0?'#059669':'#dc2626','')
-    +kpi('Pend. pago',albPend.length,'📋','#d97706',fmt(pendAmt))
     +'</div>'
-    +'<div class="kpi-grid g3" style="margin-bottom:16px">'
-    +kpi('Ventas hoy',fmt(ingH),'📅','#0891b2','')
-    +kpi('Gastos hoy',fmt(gasH),'📅','#d97706','')
-    +kpi('Tareas pend.',tPend,'✅','#7c3aed','')
-    +'</div>'
-    +'<div class="g2" style="margin-bottom:16px">'
+    +'<div class="g2">'
     +'<div class="card"><div class="st">INGRESOS VS GASTOS</div><canvas id="ch1" height="180"></canvas></div>'
     +'<div class="card"><div class="st">DISTRIBUCION DE GASTOS</div><canvas id="ch2" height="180"></canvas></div>'
-    +'</div>'
-    +(albPend.length>0?'<div class="card"><div class="st">PROXIMOS PAGOS</div>'+albPend.slice(0,4).map(function(a){var pendA=(a.importe||0)-sum(a.pagos||[],function(p){return p.importe;});return '<div class="ir"><div><strong>'+a.proveedor+'</strong><div style="font-size:11px;color:var(--textd)">'+a.id+' - '+fmtD(a.fechaPago)+(a.estado==='parcial'?' (parcial)':'')+'</div></div><strong style="color:#dc2626">'+fmt(pendA)+'</strong></div>';}).join('')+'</div>':'');
+    +'</div>';
 
+  el.innerHTML=h;
   setTimeout(function(){
     var md=MESES.map(function(m,i){
       var k=ST.year+'-'+String(i+1).padStart(2,'0');
-      return{
-        ing:sum(tx.filter(function(t){return t.tipo==='ingreso'&&mk(t.fecha)===k;}),function(t){return t.importe;}),
-        gas:sum(tx.filter(function(t){return t.tipo==='gasto'&&mk(t.fecha)===k;}),  function(t){return t.importe;})
-      };
+      return{ing:sum(tx.filter(function(t){return t.tipo==='ingreso'&&mk(t.fecha)===k;}),function(t){return t.importe;}),gas:sum(tx.filter(function(t){return t.tipo==='gasto'&&mk(t.fecha)===k;}),function(t){return t.importe;})};
     });
     var c1=document.getElementById('ch1');
     if(c1) ST.charts.c1=new Chart(c1,{type:'bar',data:{labels:MESES,datasets:[{label:'Ingresos',data:md.map(function(d){return d.ing;}),backgroundColor:'#059669cc',borderRadius:4},{label:'Gastos',data:md.map(function(d){return d.gas;}),backgroundColor:'#dc2626cc',borderRadius:4}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:10}}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'#f1f5f9'},ticks:{callback:function(v){return v>0?(v/1000).toFixed(0)+'k':'0';},font:{size:9}}}}}});
