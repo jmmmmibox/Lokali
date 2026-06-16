@@ -3436,11 +3436,6 @@ function getNotifications(){
   if(resHoy.length>0){
     notifs.push({icon:'📅',title:resHoy.length+' reserva'+(resHoy.length>1?'s':'')+' hoy',desc:resHoy.map(function(r){return r.hora+' '+r.cliente+' ('+r.personas+'p)';}).join(' · '),page:'reservas'});
   }
-  // Caja sin abrir
-  var cajaHoy=(ST.data.cajas||[]).filter(function(c){return c.fecha===today;});
-  if(cajaHoy.length===0){
-    notifs.push({icon:'🧮',title:'Caja no abierta',desc:'No has abierto ningún turno de caja hoy.',page:'caja'});
-  }
   // Citas de hoy
   var citasHoy=(ST.data.citas||[]).filter(function(c){return c.fecha===today&&(c.estado==='pendiente'||c.estado==='confirmada');});
   if(citasHoy.length>0){
