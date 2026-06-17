@@ -966,7 +966,7 @@ function pgDashboard(el){
 }
 
 /* FINANZAS */
-var fVista='mensual', fFecha=hoy();
+var fVista='diaria', fFecha=hoy();
 function pgFinanzas(el){
   var tx=ST.data.transacciones.filter(function(t){return t.fecha&&t.fecha.startsWith(String(ST.year));});
   var ingT=sum(tx.filter(function(t){return t.tipo==='ingreso';}),function(t){return t.importe;});
