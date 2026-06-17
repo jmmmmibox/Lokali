@@ -2661,7 +2661,9 @@ function pdfHistorialCitas(){
   var rows=citas.map(function(c){var cli=ST.data.clientes.find(function(x){return x.id===c.clienteId;});var pro=ST.data.profesionales.find(function(x){return x.id===c.profesionalId;});return '<tr><td>'+fmtD(c.fecha)+'</td><td>'+c.hora+'</td><td>'+(cli?cli.nombre:'—')+'</td><td>'+(pro?pro.nombre:'—')+'</td><td>'+citaTratsText(c)+'</td><td>'+citaDur(c)+'min</td><td style="text-align:right">'+fmt(citaPrecio(c))+'</td><td style="text-align:right">'+(c.descuento?fmt(c.descuento):'—')+'</td><td>'+(c.pagado?'Si':'No')+'</td></tr>';}).join('');
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>'+css+'</style></head><body>'
     
+    +'<button class="no-print" onclick="window.close()">← Volver</button>'
     +'<h1 style="font-size:18px;margin-bottom:4px">'+ST.negocio.emoji+' '+ST.negocio.nombre+' — Historial de Citas</h1>'
+    +'<button class="no-print" onclick="window.close()">← Volver</button>'
     +'<p style="color:#64748b;font-size:12px;margin-bottom:16px">Generado '+fmtD(hoy())+'</p>'
     +(filtros.length?'<div class="filtros">Filtros: '+filtros.join(' · ')+'</div>':'')
     +'<div class="kpis"><div class="kpi"><div class="kv">'+citas.length+'</div><div class="kl">Citas</div></div><div class="kpi"><div class="kv">'+fmt(totalIng)+'</div><div class="kl">Ingresos</div></div><div class="kpi"><div class="kv">'+([...new Set(citas.map(function(c){return c.clienteId;}))]).length+'</div><div class="kl">Clientes</div></div></div>'
