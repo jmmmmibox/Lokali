@@ -1007,7 +1007,7 @@ function pgFinanzas(el){
     var c=t.tipo==='ingreso'?'#059669':'#dc2626';
     h+='<tr><td>'+fmtD(t.fecha)+'</td><td>'+t.concepto+'</td><td>'+bdg(t.categoria,'blue')+'</td><td>'+bdg(t.pago,'gray')+'</td>'
       +'<td style="font-weight:700;color:'+c+'">'+(t.tipo==='ingreso'?'+':'-')+fmt(t.importe)+'</td>'
-      +'<td><button data-tid="'+t.id+'" onclick="delTxBtn(this)" class="btn btn-ghost">x</button></td></tr>';
+      +'<td><button data-tid="'+t.id+'" onclick="editTxBtn(this)" class="btn btn-ghost">✏️</button></td></tr>';
   });
   h+='</tbody></table></div></div>';
   el.innerHTML=h;
@@ -1027,7 +1027,28 @@ function pgFinanzas(el){
 }
 function setFVista(v){fVista=v;navigate('finanzas');}
 function setFFecha(v){fFecha=v;navigate('finanzas');}
-function delTxBtn(btn){var id=btn.getAttribute('data-tid');ST.data.transacciones=ST.data.transacciones.filter(function(t){return t.id!==id;});saveData();navigate('finanzas');}
+function editTxBtn(btn){
+  var id=btn.getAttribute('data-tid');
+  var t=ST.data.transacciones.find(function(x){return x.id===id;});if(!t)return;
+  var ci=ST.cfg.catVentas;
+  var cg=[];ST.cfg.catGastos.forEach(function(cat){cg.push('— '+cat.nombre+' —');cat.items.forEach(function(it){cg.push(it);});});
+  var cats=t.tipo==='ingreso'?ci:cg;
+  openModal('Editar transaccion',
+    '<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div class="fgrid" style="grid-template-columns:1fr 1fr"><div class="fg"><label class="fl">Tipo</label><select id="etx-t" class="fi"><option value="ingreso"'+(t.tipo==='ingreso'?' selected':'')+'>Ingreso</option><option value="gasto"'+(t.tipo==='gasto'?' selected':'')+'>Gasto</option></select></div>'
+    +'<div class="fg"><label class="fl">Fecha</label><input type="date" id="etx-f" class="fi" value="'+t.fecha+'"></div></div>'
+    +'<div class="fg"><label class="fl">Concepto</label><input type="text" id="etx-c" class="fi" value="'+t.concepto.replace(/"/g,'&quot;')+'"></div>'
+    +'<div class="fgrid" style="grid-template-columns:1fr 1fr"><div class="fg"><label class="fl">Categoria</label><select id="etx-cat" class="fi">'+cats.map(function(c){if(c.startsWith&&c.startsWith("— "))return '<option disabled>'+c+'</option>';return '<option'+(c===t.categoria?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div>'
+    +'<div class="fg"><label class="fl">Pago</label><select id="etx-p" class="fi"><option'+(t.pago==='Efectivo'?' selected':'')+'>Efectivo</option><option'+(t.pago==='Tarjeta'?' selected':'')+'>Tarjeta</option><option'+(t.pago==='Transferencia'?' selected':'')+'>Transferencia</option></select></div></div>'
+    +'<div class="fg"><label class="fl">Importe (€)</label><input type="number" id="etx-i" class="fi" value="'+t.importe+'" step="0.01"></div>'
+    +'<div style="display:flex;gap:8px;justify-content:space-between"><button class="btn btn-danger" data-tid="'+id+'" onclick="if(confirm(\'¿Eliminar esta transaccion?\')){ST.data.transacciones=ST.data.transacciones.filter(function(t){return t.id!==\''+id+'\';});saveData();closeModal();navigate(\'finanzas\');}">Eliminar</button>'
+    +'<div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" data-tid="'+id+'" onclick="saveEditTx(this)">Guardar</button></div></div></div>');
+}
+function saveEditTx(btn){
+  var id=btn.getAttribute('data-tid');
+  ST.data.transacciones=ST.data.transacciones.map(function(t){if(t.id!==id)return t;return Object.assign({},t,{tipo:document.getElementById('etx-t').value,fecha:document.getElementById('etx-f').value,concepto:document.getElementById('etx-c').value.trim(),categoria:document.getElementById('etx-cat').value,pago:document.getElementById('etx-p').value,importe:parseFloat(document.getElementById('etx-i').value)||0});});
+  saveData();closeModal();navigate('finanzas');showToast('Transaccion actualizada','#059669');
+}
 function openNuevaTx(){
   var ci=ST.cfg.catVentas;
   var cg=[];ST.cfg.catGastos.forEach(function(cat){cg.push('— '+cat.nombre+' —');cat.items.forEach(function(it){cg.push(it);});});
@@ -1441,7 +1462,7 @@ function pgEmpleados(el){
             +'<td><div style="display:flex;gap:4px">'
             +'<button data-eid="'+e.id+'" onclick="editEmpBtn(this)" class="btn btn-ghost">✏️</button>'
             +'<button data-eid="'+e.id+'" onclick="verHorasBtn(this)" class="btn btn-ghost">⏱</button>'
-            +'<button data-eid="'+e.id+'" onclick="delEmpBtn(this)" class="btn btn-ghost">x</button>'
+            
             +'</div></td></tr>';
         }).join('')
         +'</tbody></table></div></div>';
@@ -1614,15 +1635,15 @@ function editEmpBtn(btn){
     +'<div class="fgrid" style="grid-template-columns:1fr 1fr"><div class="fg"><label class="fl">Email</label><input type="email" id="eme-e" class="fi" value="'+(e.email||'')+'"></div>'
     +'<div class="fg"><label class="fl">Salario</label><input type="number" id="eme-s" class="fi" value="'+(e.salario||0)+'" step="0.01"></div></div>'
     +'<div class="fg"><label class="fl">Estado</label><select id="eme-est" class="fi"><option value="true"'+(e.activo!==false?' selected':'')+'>Activo</option><option value="false"'+(e.activo===false?' selected':'')+'>Baja</option></select></div>'
-    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button data-eid="'+id+'" onclick="saveEditEmpBtn(this)" class="btn btn-primary">Guardar</button></div></div>');
+    +'<div style="display:flex;gap:8px;justify-content:space-between"><button class="btn btn-danger" onclick="if(confirm(\'¿Eliminar este empleado?\')){delEmpBtn(\''+id+'\')}">Eliminar</button><div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button data-eid="'+id+'" onclick="saveEditEmpBtn(this)" class="btn btn-primary">Guardar</button></div></div></div>');
 }
 function saveEditEmpBtn(btn){
   var id=btn.getAttribute('data-eid');
   ST.data.empleados=ST.data.empleados.map(function(e){return e.id===id?Object.assign({},e,{nombre:document.getElementById('eme-n').value.trim()||e.nombre,puesto:document.getElementById('eme-p').value||'',tel:document.getElementById('eme-t').value||'',email:document.getElementById('eme-e').value||'',salario:parseFloat(document.getElementById('eme-s').value)||0,activo:document.getElementById('eme-est').value==='true'}):e;});
   saveData();closeModal();navigate('empleados');showToast('Actualizado','#059669');
 }
-function delEmpBtn(btn){
-  var id=btn.getAttribute('data-eid');
+function delEmpBtn(id){
+  if(typeof id==='object'){id=id.getAttribute('data-eid');}
   if(!confirm('Eliminar este empleado?'))return;
   ST.data.empleados=ST.data.empleados.filter(function(e){return e.id!==id;});
   saveData();navigate('empleados');
@@ -1836,7 +1857,7 @@ function pgReservas(el){
         +(r.estado==='pendiente'?'<button data-rid="'+r.id+'" data-est="confirmada" onclick="setResFBtn(this)" style="background:none;border:none;cursor:pointer;font-size:15px;color:var(--green)" title="Confirmar">✓</button>':'')
         +(r.estado!=='cancelada'&&r.estado!=='completada'?'<button data-rid="'+r.id+'" data-est="cancelada" onclick="setResFBtn(this)" style="background:none;border:none;cursor:pointer;font-size:15px;color:var(--red)" title="Cancelar">✗</button>':'')
         +'<button data-rid="'+r.id+'" onclick="editResBtn(this)" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--textd)" title="Editar">✏️</button>'
-        +'<button data-rid="'+r.id+'" onclick="delResBtn(this)" style="background:none;border:none;cursor:pointer;font-size:15px;color:var(--textd)" title="Eliminar">×</button>'
+        
         +'</div></td></tr>';
     }).join('')+'</tbody></table></div></div>';
 }
@@ -1920,13 +1941,13 @@ function pgTareas(el){
         +'</div>'
         +'<div style="display:flex;gap:4px">'+(t.estado==='pendiente'?'<button data-tid="'+t.id+'" data-est="en-progreso" onclick="setTBtn(this)" class="btn btn-ghost" title="Iniciar">▶</button>':'')
         +'<button data-tid="'+t.id+'" onclick="editTareaBtn(this)" class="btn btn-ghost" title="Editar">✏️</button>'
-        +'<button data-tid="'+t.id+'" onclick="delTBtn(this)" class="btn btn-ghost" title="Eliminar">x</button></div></div>';
+        +'</div></div>';
     }).join('')+'</div></div>';
 }
 function setTF(f){tF=f;navigate('tareas');}
 function toggleTBtn(btn){var id=btn.getAttribute('data-tid');ST.data.tareas=ST.data.tareas.map(function(t){return t.id===id?Object.assign({},t,{estado:t.estado==='completada'?'pendiente':'completada'}):t;});saveData();navigate('tareas');}
 function setTBtn(btn){var id=btn.getAttribute('data-tid'),est=btn.getAttribute('data-est');ST.data.tareas=ST.data.tareas.map(function(t){return t.id===id?Object.assign({},t,{estado:est}):t;});saveData();navigate('tareas');}
-function delTBtn(btn){var id=btn.getAttribute('data-tid');ST.data.tareas=ST.data.tareas.filter(function(t){return t.id!==id;});saveData();navigate('tareas');}
+function delTarea2(id){ST.data.tareas=ST.data.tareas.filter(function(t){return t.id!==id;});saveData();closeModal();navigate('tareas');showToast('Tarea eliminada','#d97706');}
 function tareaModal(titulo, t){
   return '<div style="display:flex;flex-direction:column;gap:12px">'
     +'<div class="fg"><label class="fl">Titulo *</label><input type="text" id="ta-t" class="fi" value="'+(t?t.titulo.replace(/"/g,'&quot;'):'')+'"></div>'
@@ -1953,7 +1974,7 @@ function editTareaBtn(btn){
   var id=btn.getAttribute('data-tid');
   var t=ST.data.tareas.find(function(x){return x.id===id;});
   if(!t)return;
-  openModal('Editar tarea', tareaModal('saveTareaEdit(\''+id+'\')', t));
+  openModal('Editar tarea', tareaModal('saveTareaEdit(\''+id+'\')', t)+'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><button class="btn btn-danger" onclick="if(confirm(\'¿Eliminar esta tarea?\')){delTarea2(\''+id+'\')}">Eliminar tarea</button></div>');
 }
 function saveTarea(){
   var t=document.getElementById('ta-t').value.trim();
@@ -2509,7 +2530,7 @@ function renderProfList(){
         +'<div style="font-size:11px;color:var(--textd)">'+(p.especialidad||'')+' · '+pCitas.length+' citas · '+fmt(ingP)+' · '+citasHoyP+' hoy</div></div>'
         +'<div style="display:flex;gap:4px">'
         +'<button data-pid="'+p.id+'" onclick="event.stopPropagation();editProfBtn(this)" style="background:none;border:none;cursor:pointer;font-size:13px">✏️</button>'
-        +'<button data-pid="'+p.id+'" onclick="event.stopPropagation();delProfBtn(this)" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--textd)">×</button></div></div>';
+        +'</div></div>';
     }).join('')
     +(ST.data.profesionales.length===0?'<div style="padding:30px;text-align:center;color:var(--textd)">Sin profesionales</div>':'')+'</div>';
 }
@@ -2527,7 +2548,7 @@ function renderTratList(){
         +'<div style="font-size:11px;color:var(--textd)">'+fmt(t.precio)+' · '+t.duracion+' min · '+tCitas.length+' veces · '+fmt(ingT)+'</div></div>'
         +'<div style="display:flex;gap:4px">'
         +'<button data-tid="'+t.id+'" onclick="event.stopPropagation();editTratBtn(this)" style="background:none;border:none;cursor:pointer;font-size:13px">✏️</button>'
-        +'<button data-tid="'+t.id+'" onclick="event.stopPropagation();delTratBtn(this)" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--textd)">×</button></div></div>';
+        +'</div></div>';
     }).join('')
     +(ST.data.tratamientos.length===0?'<div style="padding:30px;text-align:center;color:var(--textd)">Sin tratamientos</div>':'')+'</div>';
 }
@@ -2547,7 +2568,7 @@ function renderCitaRow(c){
     +(c.estado==='pendiente'?'<button data-cid="'+c.id+'" data-est="confirmada" onclick="setCitaEstado(this)" style="background:none;border:none;cursor:pointer;font-size:14px">✓</button>':'')
     +(c.estado==='confirmada'?'<button data-cid="'+c.id+'" data-est="completada" onclick="setCitaEstado(this)" style="background:none;border:none;cursor:pointer;font-size:14px">✅</button>':'')
     +'<button data-cid="'+c.id+'" onclick="editCitaBtn(this)" style="background:none;border:none;cursor:pointer;font-size:13px">✏️</button>'
-    +'<button data-cid="'+c.id+'" onclick="delCitaBtn(this)" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--textd)">×</button></div></td></tr>';
+    +'</div></td></tr>';
 }
 
 /* DETALLE VIEWS */
@@ -2720,7 +2741,7 @@ function editCitaBtn(btn){
     +'<div class="fg"><label class="fl">Pagado</label><select id="ci-pg" class="fi"><option value="0"'+(!c.pagado?' selected':'')+'>No</option><option value="1"'+(c.pagado?' selected':'')+'>Sí</option></select></div></div>'
     +'<div id="ci-resumen" style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--textm)"></div>'
     +'<div class="fg"><label class="fl">Observaciones</label><textarea id="ci-ob" class="fi" rows="2" style="resize:vertical">'+(c.observaciones||'')+'</textarea></div>'
-    +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" data-cid="'+cid+'" onclick="saveCitaEdit(this)">Guardar</button></div></div>',580);
+    +'<div style="display:flex;gap:8px;justify-content:space-between"><button class="btn btn-danger" onclick="if(confirm(\'¿Eliminar esta cita?\')){delCitaBtn2(\''+cid+'\')}">Eliminar</button><div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" data-cid="'+cid+'" onclick="saveCitaEdit(this)">Guardar</button></div></div></div>',580);
   setTimeout(renderCitaTrats,50);
 }
 function saveCitaEdit(btn){
@@ -2733,7 +2754,7 @@ function delCitaBtn(btn){var cid=btn.getAttribute('data-cid');ST.data.citas=ST.d
 
 /* PROFESIONALES CRUD */
 function openNuevoProfesional(){openModal('Nuevo profesional',profModal('saveProfesional()',null));}
-function editProfBtn(btn){var pid=btn.getAttribute('data-pid');var p=ST.data.profesionales.find(function(x){return x.id===pid;});if(!p)return;openModal('Editar profesional',profModal('saveProfEdit(\''+pid+'\')',p));}
+function editProfBtn(btn){var pid=btn.getAttribute('data-pid');var p=ST.data.profesionales.find(function(x){return x.id===pid;});if(!p)return;openModal('Editar profesional',profModal('saveProfEdit(\''+pid+'\')',p)+'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><button class="btn btn-danger" onclick="if(confirm(\'¿Eliminar este profesional?\')){delProf2(\''+pid+'\')}">Eliminar profesional</button></div>');}
 function profModal(saveF,p){
   return '<div style="display:flex;flex-direction:column;gap:12px">'
     +'<div class="fg"><label class="fl">Nombre *</label><input type="text" id="pr-n" class="fi" value="'+(p?p.nombre:'')+'"></div>'
@@ -2742,16 +2763,19 @@ function profModal(saveF,p){
     +'<div class="fg"><label class="fl">Teléfono</label><input type="tel" id="pr-t" class="fi" value="'+(p&&p.telefono?p.telefono:'')+'"></div></div>'
     +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="'+saveF+'">Guardar</button></div></div>';
 }
+function delProf2(pid){ST.data.profesionales=ST.data.profesionales.filter(function(p){return p.id!==pid;});saveData();closeModal();navigate('clientes');showToast('Profesional eliminado','#d97706');}
 function saveProfesional(){var n=document.getElementById('pr-n').value.trim();if(!n){showToast('Escribe el nombre','#dc2626');return;}ST.data.profesionales.push({id:'pro_'+uid(),nombre:n,especialidad:document.getElementById('pr-e').value||'',telefono:document.getElementById('pr-t').value||''});saveData();closeModal();navigate('clientes');showToast('Profesional añadido','#059669');}
 function saveProfEdit(pid){var n=document.getElementById('pr-n').value.trim();if(!n){showToast('Escribe el nombre','#dc2626');return;}ST.data.profesionales=ST.data.profesionales.map(function(p){return p.id===pid?Object.assign({},p,{nombre:n,especialidad:document.getElementById('pr-e').value||'',telefono:document.getElementById('pr-t').value||''}):p;});saveData();closeModal();navigate('clientes');showToast('Profesional actualizado','#059669');}
 function delProfBtn(btn){var pid=btn.getAttribute('data-pid');ST.data.profesionales=ST.data.profesionales.filter(function(p){return p.id!==pid;});saveData();navigate('clientes');showToast('Profesional eliminado','#d97706');}
 
 /* TRATAMIENTOS CRUD */
 function openNuevoTratamiento(){openModal('Nuevo tratamiento',tratModal('saveTratamiento()',null));}
-function editTratBtn(btn){var tid=btn.getAttribute('data-tid');var t=ST.data.tratamientos.find(function(x){return x.id===tid;});if(!t)return;openModal('Editar tratamiento',tratModal('saveTratEdit(\''+tid+'\')',t));}
+function editTratBtn(btn){var tid=btn.getAttribute('data-tid');var t=ST.data.tratamientos.find(function(x){return x.id===tid;});if(!t)return;openModal('Editar tratamiento',tratModal('saveTratEdit(\''+tid+'\')',t)+'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><button class="btn btn-danger" onclick="if(confirm(\'¿Eliminar este tratamiento?\')){delTrat2(\''+tid+'\')}">Eliminar tratamiento</button></div>');}
 function tratModal(saveF,t){return '<div style="display:flex;flex-direction:column;gap:12px"><div class="fg"><label class="fl">Nombre *</label><input type="text" id="tr-n" class="fi" value="'+(t?t.nombre:'')+'"></div><div class="fgrid" style="grid-template-columns:1fr 1fr"><div class="fg"><label class="fl">Precio €</label><input type="number" id="tr-p" class="fi" value="'+(t?t.precio:0)+'" step="0.01"></div><div class="fg"><label class="fl">Duración (min)</label><input type="number" id="tr-d" class="fi" value="'+(t?t.duracion:30)+'"></div></div><div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="'+saveF+'">Guardar</button></div></div>';}
 function saveTratamiento(){var n=document.getElementById('tr-n').value.trim();if(!n){showToast('Escribe el nombre','#dc2626');return;}ST.data.tratamientos.push({id:uid(),nombre:n,precio:parseFloat(document.getElementById('tr-p').value)||0,duracion:parseInt(document.getElementById('tr-d').value)||30});saveData();closeModal();navigate('clientes');showToast('Tratamiento añadido','#059669');}
 function saveTratEdit(tid){var n=document.getElementById('tr-n').value.trim();if(!n){showToast('Escribe el nombre','#dc2626');return;}ST.data.tratamientos=ST.data.tratamientos.map(function(t){return t.id===tid?Object.assign({},t,{nombre:n,precio:parseFloat(document.getElementById('tr-p').value)||0,duracion:parseInt(document.getElementById('tr-d').value)||30}):t;});saveData();closeModal();navigate('clientes');showToast('Tratamiento actualizado','#059669');}
+function delTrat2(tid){ST.data.tratamientos=ST.data.tratamientos.filter(function(t){return t.id!==tid;});saveData();closeModal();navigate('clientes');showToast('Tratamiento eliminado','#d97706');}
+function delCitaBtn2(cid){ST.data.citas=ST.data.citas.filter(function(c){return c.id!==cid;});saveData();closeModal();navigate('clientes');showToast('Cita eliminada','#d97706');}
 function delTratBtn(btn){var tid=btn.getAttribute('data-tid');ST.data.tratamientos=ST.data.tratamientos.filter(function(t){return t.id!==tid;});saveData();navigate('clientes');showToast('Tratamiento eliminado','#d97706');}
 
 /* ANALYTICS */
