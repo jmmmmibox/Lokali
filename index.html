@@ -258,6 +258,7 @@ td{padding:9px 10px;vertical-align:middle}
 .gs-item-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gs-item-sub{font-size:10px;color:#475569}
 .gs-none{padding:20px;text-align:center;color:#475569;font-size:12px}
+.pw-wrap{position:relative}.pw-wrap input{padding-right:36px!important}.pw-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:14px;color:#64748b;padding:4px}
 </style>
 </head>
 <body>
@@ -345,7 +346,7 @@ td{padding:9px 10px;vertical-align:middle}
             <div style="display:flex;flex-direction:column;gap:12px">
               <div><label class="auth-label">Nombre</label><input type="text" id="reg-nombre" class="auth-input" placeholder="Tu nombre"></div>
               <div><label class="auth-label">Email *</label><input type="email" id="reg-email" class="auth-input" placeholder="tu@email.com"></div>
-              <div><label class="auth-label">Contraseña *</label><input type="password" id="reg-pass" class="auth-input" placeholder="Mínimo 6 caracteres"></div>
+              <div><label class="auth-label">Contraseña *</label><div class="pw-wrap"><input type="password" id="reg-pass" class="auth-input" placeholder="Mínimo 6 caracteres"><button type="button" class="pw-eye" onclick="togglePw(this)">👁</button></div></div>
               <input type="hidden" id="reg-plan" value="trial">
               <button class="auth-btn" id="reg-btn" onclick="doRegistro()">Crear cuenta gratis →</button>
               <div id="reg-err" class="auth-err"></div>
@@ -749,7 +750,7 @@ async function loadNegocio(neg){
 function buildSidebar(){
   document.getElementById('sb-icon').style.background=ST.negocio.color;
   var neg=document.getElementById('sb-neg');
-  neg.innerHTML='<button class="sb-neg-btn" onclick="navigate(\'negocio\')">'
+  neg.innerHTML='<button class="sb-neg-btn" onclick="navigate(\'negocio\');if(window.innerWidth<=768)closeSB()">'
     +'<div style="width:28px;height:28px;border-radius:8px;background:'+ST.negocio.color+';display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+ST.negocio.emoji+'</div>'
     +'<span class="sb-neg-name">'+ST.negocio.nombre+'</span>'
     +'<span style="color:rgba(255,255,255,.3);font-size:12px">&#8964;</span></button>';
@@ -2998,9 +2999,9 @@ function editPinBtn(btn){
   var tienePin=!!(ST.pins&&ST.pins[id]);
   openModal((tienePin?'Cambiar PIN':'Establecer PIN')+' — '+neg.nombre,
     '<div style="display:flex;flex-direction:column;gap:12px">'
-    +(tienePin?'<div class="fg"><label class="fl">PIN actual</label><input type="password" id="pin-act" class="fi" maxlength="6" placeholder="PIN actual" style="letter-spacing:4px"></div>':'')
-    +'<div class="fg"><label class="fl">Nuevo PIN (6 digitos, dejar vacio para quitar)</label><input type="password" id="pin-new" class="fi" maxlength="6" placeholder="______" style="letter-spacing:4px"></div>'
-    +'<div class="fg"><label class="fl">Confirmar PIN</label><input type="password" id="pin-confirm" class="fi" maxlength="6" placeholder="______" style="letter-spacing:4px"></div>'
+    +(tienePin?'<div class="fg"><label class="fl">PIN actual</label><div class="pw-wrap"><input type="password" id="pin-act" class="fi" maxlength="6" placeholder="PIN actual" style="letter-spacing:4px"><button type="button" class="pw-eye" onclick="togglePw(this)">👁</button></div></div>':'')
+    +'<div class="fg"><label class="fl">Nuevo PIN (6 digitos, dejar vacio para quitar)</label><div class="pw-wrap"><input type="password" id="pin-new" class="fi" maxlength="6" placeholder="______" style="letter-spacing:4px"><button type="button" class="pw-eye" onclick="togglePw(this)">👁</button></div></div>'
+    +'<div class="fg"><label class="fl">Confirmar PIN</label><div class="pw-wrap"><input type="password" id="pin-confirm" class="fi" maxlength="6" placeholder="______" style="letter-spacing:4px"><button type="button" class="pw-eye" onclick="togglePw(this)">👁</button></div></div>'
     +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>'
     +'<button class="btn btn-primary" data-nid="'+id+'" onclick="savePin(this)">Guardar</button></div></div>');
 }
@@ -3044,7 +3045,7 @@ function switchNegBtn(btn){
       +'<div style="font-size:32px">'+neg.emoji+'</div>'
       +'<p style="font-size:14px;font-weight:600">'+neg.nombre+'</p>'
       +'<p style="font-size:13px;color:var(--textm)">Introduce el PIN de 6 digitos</p>'
-      +'<input type="password" id="pin-inp" class="fi" maxlength="6" placeholder="______" style="text-align:center;font-size:20px;letter-spacing:6px;width:160px" onkeydown="if(event.key===\'Enter\')confirmPin(\''+id+'\',\''+pin+'\')">'
+      +'<div class="pw-wrap" style="width:160px;margin:0 auto"><input type="password" id="pin-inp" class="fi" maxlength="6" placeholder="______" style="text-align:center;font-size:20px;letter-spacing:6px;width:100%" onkeydown="if(event.key===\'Enter\')confirmPin(\''+id+'\',\''+pin+'\')"><button type="button" class="pw-eye" onclick="togglePw(this)">👁</button></div>'
       +'<div style="display:flex;gap:8px;justify-content:center"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>'
       +'<button class="btn btn-primary" onclick="confirmPin(\''+id+'\',\''+pin+'\')">Entrar</button></div></div>');
     setTimeout(function(){var el=document.getElementById('pin-inp');if(el)el.focus();},80);
@@ -3130,7 +3131,7 @@ function delNegBtn(btn){
       '<div style="display:flex;flex-direction:column;gap:14px">'
       +'<p style="font-size:13px;color:var(--red);font-weight:600">⚠️ Esta accion es irreversible. Se perderan todos los datos.</p>'
       +'<p style="font-size:13px;color:var(--textm)">Introduce el PIN del negocio para confirmar la eliminacion:</p>'
-      +'<input type="password" id="del-pin-inp" class="fi" maxlength="6" placeholder="PIN de 6 digitos" style="text-align:center;font-size:18px;letter-spacing:4px">'
+      +'<div class="pw-wrap"><input type="password" id="del-pin-inp" class="fi" maxlength="6" placeholder="PIN de 6 digitos" style="text-align:center;font-size:18px;letter-spacing:4px"><button type="button" class="pw-eye" onclick="togglePw(this)">👁</button></div>'
       +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>'
       +'<button class="btn btn-danger" onclick="confirmDelNeg(\''+id+'\',\''+pin+'\')">Eliminar</button></div></div>');
     setTimeout(function(){var el=document.getElementById('del-pin-inp');if(el)el.focus();},80);
@@ -3368,6 +3369,9 @@ async function ejecutarReseteo(){
     btn.disabled=false;btn.textContent='Borrar todo';
   }
 }
+
+/* PASSWORD TOGGLE */
+function togglePw(btn){var inp=btn.parentElement.querySelector("input");if(inp.type==="password"){inp.type="text";btn.textContent="🙈";}else{inp.type="password";btn.textContent="👁";}}
 
 /* GLOBAL SEARCH */
 function globalSearch(q){
@@ -3665,7 +3669,7 @@ function showInactivityLock(){
     +'<div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px">Sesión bloqueada</div>'
     +'<div style="font-size:13px;color:#64748b;margin-bottom:24px">Tu sesión se ha bloqueado por inactividad.</div>'
     +'<div style="max-width:300px;width:100%">'
-    +'<input type="password" id="lock-pass" placeholder="Introduce tu contraseña" style="width:100%;background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px 14px;color:#fff;font-size:14px;outline:none;font-family:inherit;box-sizing:border-box;text-align:center;margin-bottom:12px" onkeydown="if(event.key===\'Enter\')unlockSession()">'
+    +'<div class="pw-wrap" style="margin-bottom:12px"><input type="password" id="lock-pass" placeholder="Introduce tu contraseña" style="width:100%;background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px 14px;color:#fff;font-size:14px;outline:none;font-family:inherit;box-sizing:border-box;text-align:center" onkeydown="if(event.key===\'Enter\')unlockSession()"><button type="button" class="pw-eye" onclick="togglePw(this)">👁</button></div>'
     +'<div id="lock-err" style="color:#f87171;font-size:12px;margin-bottom:12px;display:none"></div>'
     +'<button onclick="unlockSession()" style="width:100%;background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">Desbloquear</button>'
     +'<button onclick="doLogout();var l=document.getElementById(\'inactivity-lock\');if(l)l.remove();" style="background:none;border:none;color:#64748b;font-size:12px;cursor:pointer;font-family:inherit;text-decoration:underline">Cerrar sesión</button>'
@@ -4279,9 +4283,9 @@ function showResetPassForm(){
     +'<div style="font-size:13px;color:#64748b;margin-bottom:24px">Escribe tu nueva contraseña para Lokali.</div>'
     +'<div style="display:flex;flex-direction:column;gap:12px;text-align:left">'
     +'<div><label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">Nueva contraseña</label>'
-    +'<input type="password" id="rp-new" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:11px 14px;color:#fff;font-size:14px;outline:none;font-family:inherit;box-sizing:border-box" placeholder="Mínimo 6 caracteres"></div>'
+    +'<div class="pw-wrap"><input type="password" id="rp-new" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:11px 14px;color:#fff;font-size:14px;outline:none;font-family:inherit;box-sizing:border-box" placeholder="Mínimo 6 caracteres"><button type="button" class="pw-eye" onclick="togglePw(this)">👁</button></div></div>'
     +'<div><label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">Confirmar contraseña</label>'
-    +'<input type="password" id="rp-confirm" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:11px 14px;color:#fff;font-size:14px;outline:none;font-family:inherit;box-sizing:border-box" placeholder="Repite la contraseña" onkeydown="if(event.key===\'Enter\')guardarResetPass()"></div>'
+    +'<div class="pw-wrap"><input type="password" id="rp-confirm" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:11px 14px;color:#fff;font-size:14px;outline:none;font-family:inherit;box-sizing:border-box" placeholder="Repite la contraseña" onkeydown="if(event.key===\'Enter\')guardarResetPass()"><button type="button" class="pw-eye" onclick="togglePw(this)">👁</button></div>'
     +'<div id="rp-err" style="color:#f87171;font-size:12px;display:none"></div>'
     +'<button onclick="guardarResetPass()" style="width:100%;background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:4px">Guardar contraseña</button>'
     +'</div></div>';
