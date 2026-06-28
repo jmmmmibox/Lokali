@@ -709,6 +709,10 @@ async function init(){
   ST.negocios=negocios;
   ST.plan='premium';
 
+  // Load pins from any negocio config (they're stored globally across all)
+  var anyConfig=await sbGetConfig(negocios[0].id);
+  ST.pins=(anyConfig&&anyConfig._pins)||{};
+
   // If more than one negocio, show selector
   if(negocios.length>1){
     showNegocioSelector(negocios);
