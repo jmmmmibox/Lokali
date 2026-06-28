@@ -708,10 +708,59 @@ async function init(){
   }
   ST.negocios=negocios;
   ST.plan='premium';
-  ST.negocio=negocios[0];
 
+  // If more than one negocio, show selector
+  if(negocios.length>1){
+    showNegocioSelector(negocios);
+    return;
+  }
+  ST.negocio=negocios[0];
   await loadNegocio(ST.negocio);
   buildSidebar(); buildYearSel(); navigate('dashboard');
+}
+
+function showNegocioSelector(negocios){
+  document.getElementById('app-screen').style.display='none';
+  var overlay=document.createElement('div');
+  overlay.id='neg-selector';
+  overlay.style.cssText='position:fixed;inset:0;background:#0f172a;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
+  var items=negocios.map(function(n){
+    return '<div onclick="selectNegocio(\''+n.id+'\')" style="display:flex;align-items:center;gap:14px;padding:16px 18px;border:2px solid #334155;border-radius:14px;cursor:pointer;transition:all .15s;background:#1e293b" onmouseover="this.style.borderColor=\''+n.color+'\';this.style.background=\''+n.color+'11\'" onmouseout="this.style.borderColor=\'#334155\';this.style.background=\'#1e293b\'">'
+      +'<div style="width:48px;height:48px;border-radius:12px;background:'+n.color+';display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">'+n.emoji+'</div>'
+      +'<div><div style="font-size:15px;font-weight:700;color:#fff">'+n.nombre+'</div>'
+      +'<div style="font-size:12px;color:#64748b;margin-top:2px">'+n.tipo+'</div></div>'
+      +'<div style="margin-left:auto;color:#64748b;font-size:18px">→</div></div>';
+  }).join('');
+  overlay.innerHTML='<div style="width:100%;max-width:420px">'
+    +'<div style="text-align:center;margin-bottom:28px">'
+    +'<div style="font-size:28px;font-weight:800;color:#fff;letter-spacing:-1px">Lok<span style="color:#3b82f6">ali</span></div>'
+    +'<div style="font-size:14px;color:#64748b;margin-top:8px">¿A qué negocio quieres entrar?</div></div>'
+    +'<div style="display:flex;flex-direction:column;gap:10px">'+items+'</div>'
+    +'<button onclick="doLogout();document.getElementById(\'neg-selector\').remove()" style="width:100%;margin-top:20px;background:none;border:none;color:#475569;font-size:12px;cursor:pointer;font-family:inherit;padding:8px">Cerrar sesión</button>'
+    +'</div>';
+  document.body.appendChild(overlay);
+}
+
+async function selectNegocio(nid){
+  var overlay=document.getElementById('neg-selector');if(overlay)overlay.remove();
+  document.getElementById('app-screen').style.display='flex';
+  var neg=ST.negocios.find(function(n){return n.id===nid;});
+  if(!neg)return;
+  var pin=ST.pins&&ST.pins[nid];
+  if(pin){
+    openModal('PIN requerido',
+      '<div style="display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center">'
+      +'<div style="font-size:32px">'+neg.emoji+'</div>'
+      +'<p style="font-size:14px;font-weight:600">'+neg.nombre+'</p>'
+      +'<div class="pw-wrap" style="width:160px"><input type="password" id="pin-inp" class="fi" maxlength="6" placeholder="______" style="text-align:center;font-size:20px;letter-spacing:6px;width:100%" onkeydown="if(event.key===\'Enter\')confirmPin(\''+nid+'\',\''+pin+'\')"><button type="button" class="pw-eye" onclick="togglePw(this)">👁</button></div>'
+      +'<div style="display:flex;gap:8px;justify-content:center"><button class="btn btn-secondary" onclick="closeModal();showNegocioSelector(ST.negocios)">Cancelar</button>'
+      +'<button class="btn btn-primary" onclick="confirmPin(\''+nid+'\',\''+pin+'\')">Entrar</button></div></div>');
+    setTimeout(function(){var el=document.getElementById('pin-inp');if(el)el.focus();},80);
+  } else {
+    ST.negocio=neg;
+    await loadNegocio(neg);
+    buildSidebar();buildYearSel();navigate('dashboard');
+  }
 }
 
 async function loadNegocio(neg){
@@ -750,7 +799,7 @@ async function loadNegocio(neg){
 function buildSidebar(){
   document.getElementById('sb-icon').style.background=ST.negocio.color;
   var neg=document.getElementById('sb-neg');
-  neg.innerHTML='<button class="sb-neg-btn" onclick="navigate(\'negocio\');if(window.innerWidth<=768)closeSB()">'
+  neg.innerHTML='<button class="sb-neg-btn" onclick="if(ST.negocios.length>1){showNegocioSelector(ST.negocios);}else{navigate(\'negocio\');}if(window.innerWidth<=768)closeSB()">'
     +'<div style="width:28px;height:28px;border-radius:8px;background:'+ST.negocio.color+';display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+ST.negocio.emoji+'</div>'
     +'<span class="sb-neg-name">'+ST.negocio.nombre+'</span>'
     +'<span style="color:rgba(255,255,255,.3);font-size:12px">&#8964;</span></button>';
@@ -3055,7 +3104,11 @@ function switchNegBtn(btn){
 }
 function confirmPin(negId,pin){
   var inp=document.getElementById('pin-inp');if(!inp)return;
-  if(inp.value===pin){closeModal();doSwitchNeg(negId);}
+  if(inp.value===pin){
+    closeModal();
+    var neg=ST.negocios.find(function(n){return n.id===negId;});
+    if(neg){loadNegocio(neg).then(function(){buildSidebar();buildYearSel();navigate('dashboard');});}
+  }
   else{inp.value='';inp.style.borderColor='#dc2626';showToast('PIN incorrecto','#dc2626');}
 }
 async function doSwitchNeg(id){
