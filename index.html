@@ -546,6 +546,7 @@ const NAV_ITEMS = [
   {id:'documentos',label:'Documentos',  icon:'📄'},
   {id:'clientes',  label:'Clientes',    icon:'💆'},
   {id:'analytics', label:'Analytics',  icon:'📊'},
+  {id:'tesoreria', label:'Tesorería',   icon:'🏦'},
   {id:'ajustes',   label:'Ajustes',     icon:'⚙️'},
   {id:'backup',    label:'Backup',      icon:'💾'},
 ];
@@ -889,7 +890,7 @@ function navigate(page){
     dashboard:pgDashboard,finanzas:pgFinanzas,caja:pgCaja,
     albaranes:pgAlbaranes,empleados:pgEmpleados,reservas:pgReservas,
     tareas:pgTareas,documentos:pgDocumentos,clientes:pgClientes,analytics:pgAnalytics,negocio:pgNegocio,
-    ajustes:pgAjustes,backup:pgBackup
+    tesoreria:pgTesoreria,ajustes:pgAjustes,backup:pgBackup
   };
   if(pages[page])pages[page](el);
   updateNotifBadge();
@@ -3303,6 +3304,146 @@ async function addCG(){var v=document.getElementById('new-cg').value.trim();if(!
 async function addCGI(ci){var v=document.getElementById('new-cgi-'+ci).value.trim();if(!v)return;ST.cfg.catGastos[ci].items.push(v);await saveCfg();navigate('ajustes');}
 async function delCGI(btn){var ci=parseInt(btn.getAttribute('data-ci')),ii=parseInt(btn.getAttribute('data-ii'));ST.cfg.catGastos[ci].items.splice(ii,1);await saveCfg();navigate('ajustes');}
 async function renCG(btn){var ci=parseInt(btn.getAttribute('data-ci'));var n=prompt('Nuevo nombre:',ST.cfg.catGastos[ci].nombre);if(n&&n.trim()){ST.cfg.catGastos[ci].nombre=n.trim();await saveCfg();navigate('ajustes');}}
+
+/* TESORERÍA */
+function pgTesoreria(el){
+  var cfg=ST.cfg.tesoreria||{saldos:{efD:0,efA:0,tjD:0,tjA:0},traspasos:[]};
+  // Calcular saldos automáticos (efectivo y tarjeta de transacciones del año)
+  var tx=ST.data.transacciones||[];
+  var ingEf=0,gasEf=0,ingTj=0,gasTj=0;
+  tx.forEach(function(t){
+    var v=parseFloat(t.importe)||0;
+    if(t.tipo==='ingreso'&&t.pago==='Efectivo')ingEf+=v;
+    if(t.tipo==='gasto'&&t.pago==='Efectivo')gasEf+=v;
+    if(t.tipo==='ingreso'&&t.pago==='Tarjeta')ingTj+=v;
+    if(t.tipo==='gasto'&&t.pago==='Tarjeta')gasTj+=v;
+  });
+  var saldoBase=cfg.saldos||{efD:0,efA:0,tjD:0,tjA:0};
+  var efD=(parseFloat(saldoBase.efD)||0)+(ingEf-gasEf);
+  var efA=parseFloat(saldoBase.efA)||0;
+  var tjD=(parseFloat(saldoBase.tjD)||0)+(ingTj-gasTj);
+  var tjA=parseFloat(saldoBase.tjA)||0;
+  // Aplicar traspasos
+  var traspasos=cfg.traspasos||[];
+  traspasos.forEach(function(t){
+    var v=parseFloat(t.importe)||0;
+    if(t.de==='efD')efD-=v; if(t.a==='efD')efD+=v;
+    if(t.de==='efA')efA-=v; if(t.a==='efA')efA+=v;
+    if(t.de==='tjD')tjD-=v; if(t.a==='tjD')tjD+=v;
+    if(t.de==='tjA')tjA-=v; if(t.a==='tjA')tjA+=v;
+  });
+  var ac=ST.negocio.color;
+  function card(id,label,icon,saldo,auto){
+    var c=saldo>=0?'#059669':'#dc2626';
+    return '<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 20px">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'
+      +'<div style="font-size:22px">'+icon+'</div>'
+      +'<div><div style="font-size:13px;font-weight:700;color:var(--text)">'+label+'</div>'
+      +(auto?'<div style="font-size:10px;color:var(--textm)">Automático · transacciones año</div>':'<div style="font-size:10px;color:var(--textm)">Saldo manual + traspasos</div>')
+      +'</div></div>'
+      +'<div style="font-size:26px;font-weight:800;color:'+c+'">'+fmt(saldo)+'</div>'
+      +'</div>';
+  }
+  var cuentas=[
+    {id:'efD',label:'Caja Efectivo Diaria',icon:'💵',saldo:efD,auto:true},
+    {id:'efA',label:'Caja Efectivo Ahorro',icon:'🐷',saldo:efA,auto:false},
+    {id:'tjD',label:'Tarjeta Diaria',icon:'💳',saldo:tjD,auto:true},
+    {id:'tjA',label:'Tarjeta Virtual Ahorro',icon:'🏦',saldo:tjA,auto:false},
+  ];
+  var cards=cuentas.map(function(c){return card(c.id,c.label,c.icon,c.saldo,c.auto);}).join('');
+  // Historial traspasos
+  var hist='';
+  if(traspasos.length>0){
+    var nombres={efD:'Efectivo Diaria',efA:'Efectivo Ahorro',tjD:'Tarjeta Diaria',tjA:'T.Virtual Ahorro'};
+    hist='<div style="margin-top:24px"><div class="pt" style="margin-bottom:12px">Historial de traspasos</div>'
+      +'<div style="display:flex;flex-direction:column;gap:6px">'
+      +traspasos.slice().reverse().map(function(t,i){
+        var ri=traspasos.length-1-i;
+        return '<div style="display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:13px">'
+          +'<div><span style="color:var(--textm)">'+fmtD(t.fecha)+'</span>'
+          +'<span style="margin:0 8px;color:var(--textm)">·</span>'
+          +'<strong>'+fmt(t.importe)+'</strong>'
+          +'<span style="margin:0 8px;color:var(--textm)">·</span>'
+          +'<span style="color:var(--textm)">'+nombres[t.de]+' → '+nombres[t.a]+'</span>'
+          +(t.concepto?'<span style="margin:0 8px;color:var(--textm)">· '+t.concepto+'</span>':'')
+          +'</div>'
+          +'<button onclick="tesoreriaDelTraspaso('+ri+')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:16px;padding:0 4px">✕</button>'
+          +'</div>';
+      }).join('')
+      +'</div></div>';
+  }
+  el.innerHTML='<div class="ph"><div><div class="pt">Tesorería</div><div class="ps">Saldos y traspasos entre cuentas</div></div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button class="btn btn-secondary btn-sm" onclick="tesoreriaEditSaldos()">⚙️ Saldos iniciales</button>'
+    +'<button class="btn btn-primary btn-sm" onclick="tesoreriaTraspaso()">↔ Nuevo traspaso</button>'
+    +'</div></div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:4px">'
+    +cards+'</div>'
+    +hist;
+}
+
+function tesoreriaEditSaldos(){
+  var cfg=ST.cfg.tesoreria||{saldos:{efD:0,efA:0,tjD:0,tjA:0},traspasos:[]};
+  var s=cfg.saldos||{efD:0,efA:0,tjD:0,tjA:0};
+  openModal('Saldos iniciales',
+    '<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<p style="font-size:12px;color:var(--textm)">Introduce el saldo inicial de cada cuenta (antes de transacciones registradas en Lokali):</p>'
+    +'<div class="fg"><label class="fl">💵 Caja Efectivo Diaria</label><input type="number" id="si-efD" class="fi" value="'+(s.efD||0)+'" step="0.01"></div>'
+    +'<div class="fg"><label class="fl">🐷 Caja Efectivo Ahorro</label><input type="number" id="si-efA" class="fi" value="'+(s.efA||0)+'" step="0.01"></div>'
+    +'<div class="fg"><label class="fl">💳 Tarjeta Diaria</label><input type="number" id="si-tjD" class="fi" value="'+(s.tjD||0)+'" step="0.01"></div>'
+    +'<div class="fg"><label class="fl">🏦 Tarjeta Virtual Ahorro</label><input type="number" id="si-tjA" class="fi" value="'+(s.tjA||0)+'" step="0.01"></div>'
+    +'<div style="display:flex;justify-content:flex-end;gap:8px">'
+    +'<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-primary" onclick="tesoreriaGuardarSaldos()">Guardar</button></div></div>',420);
+}
+
+async function tesoreriaGuardarSaldos(){
+  if(!ST.cfg.tesoreria)ST.cfg.tesoreria={saldos:{},traspasos:[]};
+  ST.cfg.tesoreria.saldos={
+    efD:parseFloat(document.getElementById('si-efD').value)||0,
+    efA:parseFloat(document.getElementById('si-efA').value)||0,
+    tjD:parseFloat(document.getElementById('si-tjD').value)||0,
+    tjA:parseFloat(document.getElementById('si-tjA').value)||0
+  };
+  await saveCfg();closeModal();navigate('tesoreria');showToast('Saldos guardados','#059669');
+}
+
+function tesoreriaTraspaso(){
+  var opts='<option value="efD">💵 Efectivo Diaria</option>'
+    +'<option value="efA">🐷 Efectivo Ahorro</option>'
+    +'<option value="tjD">💳 Tarjeta Diaria</option>'
+    +'<option value="tjA">🏦 T.Virtual Ahorro</option>';
+  openModal('Nuevo traspaso',
+    '<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div class="fg"><label class="fl">Desde</label><select id="tr-de" class="fi">'+opts+'</select></div>'
+    +'<div class="fg"><label class="fl">Hacia</label><select id="tr-a" class="fi"><option value="efA">🐷 Efectivo Ahorro</option><option value="efD">💵 Efectivo Diaria</option><option value="tjA">🏦 T.Virtual Ahorro</option><option value="tjD">💳 Tarjeta Diaria</option></select></div>'
+    +'<div class="fg"><label class="fl">Importe (€)</label><input type="number" id="tr-imp" class="fi" placeholder="0.00" step="0.01" min="0.01"></div>'
+    +'<div class="fg"><label class="fl">Fecha</label><input type="date" id="tr-fecha" class="fi" value="'+hoy()+'"></div>'
+    +'<div class="fg"><label class="fl">Concepto (opcional)</label><input type="text" id="tr-concepto" class="fi" placeholder="Ej: Ahorro semanal"></div>'
+    +'<div style="display:flex;justify-content:flex-end;gap:8px">'
+    +'<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn btn-primary" onclick="tesoreriaGuardarTraspaso()">Guardar</button></div></div>',420);
+}
+
+async function tesoreriaGuardarTraspaso(){
+  var de=document.getElementById('tr-de').value;
+  var a=document.getElementById('tr-a').value;
+  var imp=parseFloat(document.getElementById('tr-imp').value);
+  var fecha=document.getElementById('tr-fecha').value;
+  var concepto=document.getElementById('tr-concepto').value.trim();
+  if(!imp||imp<=0){showToast('Introduce un importe válido','#dc2626');return;}
+  if(de===a){showToast('Origen y destino no pueden ser iguales','#dc2626');return;}
+  if(!ST.cfg.tesoreria)ST.cfg.tesoreria={saldos:{efD:0,efA:0,tjD:0,tjA:0},traspasos:[]};
+  if(!ST.cfg.tesoreria.traspasos)ST.cfg.tesoreria.traspasos=[];
+  ST.cfg.tesoreria.traspasos.push({id:uid(),de:de,a:a,importe:imp,fecha:fecha,concepto:concepto});
+  await saveCfg();closeModal();navigate('tesoreria');showToast('Traspaso registrado','#059669');
+}
+
+async function tesoreriaDelTraspaso(idx){
+  if(!confirm('¿Eliminar este traspaso?'))return;
+  ST.cfg.tesoreria.traspasos.splice(idx,1);
+  await saveCfg();navigate('tesoreria');showToast('Traspaso eliminado','#d97706');
+}
 
 /* BACKUP */
 function pgBackup(el){
